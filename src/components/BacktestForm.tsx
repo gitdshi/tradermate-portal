@@ -1,37 +1,126 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Play, X } from 'lucide-react'
-import { useState } from 'react'
-import { backtestAPI, strategiesAPI } from '../lib/api'
-import type { BacktestRequest } from '../types'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Play, Search, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { marketDataAPI, queueAPI, strategiesAPI } from '../lib/api'
+import { useAuthStore } from '../stores/auth'
 
 interface BacktestFormProps {
   onClose: () => void
   onSubmitSuccess?: (jobId: string) => void
 }
 
+interface Stock {
+  symbol: string
+  name: string
+  vt_symbol: string
+  exchange: string
+}
+
 export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormProps) {
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+
+  console.log('Current user:', user)
 
   const [strategyId, setStrategyId] = useState<string>('')
-  const [symbol, setSymbol] = useState('AAPL')
+  const [symbol, setSymbol] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [initialCapital, setInitialCapital] = useState('100000')
   const [rate, setRate] = useState('0.0003')
   const [slippage, setSlippage] = useState('0.0001')
   const [error, setError] = useState('')
+  
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const { data: strategiesData } = useQuery({
+  // Set default dates (recent one year)
+  useEffect(() => {
+    const today = new Date()
+    const oneYearAgo = new Date()
+    oneYearAgo.setFullYear(today.getFullYear() - 1)
+    
+    setEndDate(today.toISOString().split('T')[0])
+    setStartDate(oneYearAgo.toISOString().split('T')[0])
+  }, [])
+
+  // Fetch strategies from DB
+  const { data: strategiesData, isLoading: isLoadingStrategies, isError: isErrorStrategies } = useQuery({
     queryKey: ['strategies'],
-    queryFn: () => strategiesAPI.list(),
+    queryFn: async () => {
+      const result = await strategiesAPI.list()
+      console.log('Strategies API response:', result)
+      console.log('Strategies data:', result?.data)
+      return result
+    },
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   })
 
   const strategies = strategiesData?.data || []
+  
+  console.log('Final strategies array:', strategies)
+
+  // Fetch stocks with paginated search (20 per page) and support loading more
+  const PAGE_SIZE = 20
+
+  const {
+    data: stocksPages,
+    isLoading: isLoadingStocks,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['stocks', searchTerm],
+    queryFn: async ({ pageParam = 0 }) => {
+      const keyword = searchTerm.trim() || undefined
+      const offset = pageParam || 0
+      const res = await marketDataAPI.symbols(undefined, keyword, PAGE_SIZE, offset)
+      return res.data as Stock[]
+    },
+    getNextPageParam: (lastPage, allPages) => (lastPage.length === PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined),
+    enabled: true,
+  })
+
+  const stocks: Stock[] = stocksPages?.pages.flat() || []
+
+  // Auto-select first active strategy
+  useEffect(() => {
+    if (!strategyId && strategies.length > 0) {
+      const firstActive = strategies.find((s: any) => s.is_active) || strategies[0]
+      if (firstActive) setStrategyId(String(firstActive.id))
+    }
+  }, [strategies, strategyId])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const submitMutation = useMutation({
-    mutationFn: (data: BacktestRequest) => backtestAPI.submit(data),
+    mutationFn: (data: {
+      strategy_id?: number
+      strategy_class?: string
+      symbol: string
+      start_date: string
+      end_date: string
+      initial_capital?: number
+      rate?: number
+      slippage?: number
+      parameters?: Record<string, unknown>
+    }) => queueAPI.submitBacktest(data),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['backtests'] })
+      queryClient.invalidateQueries({ queryKey: ['queue-jobs'] })
       const jobId = response.data?.job_id || response.data?.id
       if (onSubmitSuccess && jobId) {
         onSubmitSuccess(jobId)
@@ -39,10 +128,46 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
       onClose()
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { detail?: string } } }
-      setError(error.response?.data?.detail || 'Failed to submit backtest')
+      // Normalize various error shapes (string, array, object) into a string
+      // and avoid rendering raw objects which cause React to crash.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const e: any = err
+      console.error('Backtest submit error:', e)
+
+      let message = 'Failed to submit backtest'
+      const resp = e?.response?.data
+
+      if (resp) {
+        if (typeof resp.detail === 'string') {
+          message = resp.detail
+        } else if (Array.isArray(resp.detail)) {
+          // pydantic validation errors -> array of {loc,msg,...}
+          message = resp.detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ')
+        } else if (typeof resp.detail === 'object') {
+          message = JSON.stringify(resp.detail)
+        } else if (typeof resp === 'string') {
+          message = resp
+        }
+      }
+
+      setError(message)
     },
   })
+
+  const handleStockSelect = (stock: Stock) => {
+    setSymbol(stock.vt_symbol)
+    setSearchTerm(`${stock.symbol} - ${stock.name}`)
+    setShowDropdown(false)
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    setShowDropdown(true)
+    // If user clears the search, clear the symbol
+    if (!value) {
+      setSymbol('')
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,6 +175,11 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
 
     if (!strategyId) {
       setError('Please select a strategy')
+      return
+    }
+
+    if (!symbol) {
+      setError('Please select a symbol')
       return
     }
 
@@ -64,10 +194,11 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
     }
 
     submitMutation.mutate({
-      strategy_id: parseInt(strategyId),
+      strategy_id: strategyId ? parseInt(strategyId) : undefined,
       symbol: symbol.trim(),
       start_date: startDate,
       end_date: endDate,
+      parameters: {},
       initial_capital: parseFloat(initialCapital),
       rate: parseFloat(rate),
       slippage: parseFloat(slippage),
@@ -104,29 +235,86 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
               onChange={(e) => setStrategyId(e.target.value)}
               className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
               required
+              disabled={isLoadingStrategies}
             >
-              <option value="">Select a strategy</option>
-              {strategies.map((strategy: { id: number; name: string; is_active: boolean }) => (
+              <option value="">
+                {isLoadingStrategies ? 'Loading strategies...' : isErrorStrategies ? 'Error loading strategies' : strategies.length === 0 ? 'No strategies available' : 'Select a strategy'}
+              </option>
+              {strategies.map((strategy: { id: number; name: string; class_name: string; is_active: boolean }) => (
                 <option key={strategy.id} value={strategy.id}>
-                  {strategy.name} {!strategy.is_active && '(Inactive)'}
+                  {strategy.name} ({strategy.class_name}) {!strategy.is_active && '(Inactive)'}
                 </option>
               ))}
             </select>
           </div>
 
-          <div>
+          <div ref={dropdownRef}>
             <label htmlFor="symbol" className="block text-sm font-medium mb-2">
               Symbol *
             </label>
-            <input
-              id="symbol"
-              type="text"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="AAPL"
-              required
-            />
+            <div className="relative">
+              <div className="relative">
+                <input
+                  id="symbol"
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={() => setShowDropdown(true)}
+                  className="w-full px-3 py-2 pr-10 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="Search by code or name..."
+                  required
+                />
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              </div>
+
+              {showDropdown && (
+                <div className="absolute z-10 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {isLoadingStocks ? (
+                    <div className="p-3 text-sm text-muted-foreground text-center">
+                      Loading...
+                    </div>
+                  ) : stocks.length > 0 ? (
+                    stocks.map((stock) => (
+                      <button
+                        key={stock.vt_symbol}
+                        type="button"
+                        onClick={() => handleStockSelect(stock)}
+                        className="w-full text-left px-3 py-2 hover:bg-muted transition-colors border-b border-border last:border-0"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-medium text-sm">{stock.symbol}</div>
+                            <div className="text-xs text-muted-foreground">{stock.name}</div>
+                          </div>
+                          <div className="text-xs text-muted-foreground">{stock.exchange}</div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-3 text-sm text-muted-foreground text-center">
+                      No stocks found
+                    </div>
+                  )}
+                  {/* Load more */}
+                  {(hasNextPage || isFetchingNextPage) && (
+                    <div className="p-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => fetchNextPage()}
+                        className="px-3 py-1 rounded bg-muted/20 hover:bg-muted transition-colors"
+                      >
+                        {isFetchingNextPage ? 'Loading...' : '...'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {symbol && (
+              <div className="mt-1 text-xs text-muted-foreground">
+                Selected: {symbol}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

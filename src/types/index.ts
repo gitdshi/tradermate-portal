@@ -73,3 +73,43 @@ export interface QueueStats {
     started: number
   }>
 }
+
+export interface StrategyFile {
+  name: string
+  filename: string
+  source: 'data' | 'project'
+  path: string
+  size: number
+  modified: number
+  hash: string
+}
+
+export interface StrategyFileContent {
+  name: string
+  content: string
+}
+
+export interface StrategyFileCreate {
+  name: string
+  content: string
+  source?: 'data' | 'project'
+}
+
+export interface StrategyFileUpdate {
+  content: string
+  source?: 'data' | 'project'
+}
+
+export interface SyncResult {
+  copied_to_data: number
+  copied_to_project: number
+  unchanged: number
+  errors: string[]
+}
+
+export interface StrategyComparison {
+  name: string
+  status: 'synced' | 'data_newer' | 'project_newer' | 'different' | 'data_only' | 'project_only'
+  data: StrategyFile | null
+  project: StrategyFile | null
+}

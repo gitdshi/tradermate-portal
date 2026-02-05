@@ -29,7 +29,8 @@ function App() {
           </PrivateRoute>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="strategies" element={<Strategies />} />
         <Route path="backtest" element={<Backtest />} />
         <Route path="market-data" element={<MarketData />} />

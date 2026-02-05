@@ -3,6 +3,7 @@ import { useState } from 'react'
 import BacktestForm from '../components/BacktestForm'
 import BacktestJobList from '../components/BacktestJobList'
 import BacktestResults from '../components/BacktestResults'
+import ErrorBoundary from '../components/ErrorBoundary'
 
 export default function Backtest() {
   const [showForm, setShowForm] = useState(false)
@@ -36,12 +37,14 @@ export default function Backtest() {
       </div>
 
       {showForm && (
-        <BacktestForm
-          onClose={() => setShowForm(false)}
-          onSubmitSuccess={(jobId) => {
-            console.log('Backtest submitted:', jobId)
-          }}
-        />
+        <ErrorBoundary>
+          <BacktestForm
+            onClose={() => setShowForm(false)}
+            onSubmitSuccess={(jobId) => {
+              console.log('Backtest submitted:', jobId)
+            }}
+          />
+        </ErrorBoundary>
       )}
 
       {selectedJobId && (

@@ -16,6 +16,8 @@ export default function Layout() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarPinned, setSidebarPinned] = useState(true)
+  const [showHeader, setShowHeader] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -23,7 +25,7 @@ export default function Layout() {
   }
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Strategies', href: '/strategies', icon: FileCode },
     { name: 'Backtest', href: '/backtest', icon: TrendingUp },
     { name: 'Market Data', href: '/market-data', icon: Database },
@@ -34,19 +36,38 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background">
       {/* Sidebar */}
+      {!sidebarPinned && (
+        <div
+          onMouseEnter={() => setSidebarOpen(true)}
+          onMouseLeave={() => { if (!sidebarPinned) setSidebarOpen(false) }}
+          className="fixed left-0 top-0 h-full z-40 w-6 bg-transparent hover:bg-gray-100/10 cursor-pointer"
+          aria-hidden={false}
+        />
+      )}
+
       <aside
-        className={`fixed inset-y-0 left-0 z-50 bg-card border-r border-border transition-transform duration-300 ${
-          sidebarOpen ? 'w-64' : 'w-0'
+        onMouseEnter={() => setSidebarOpen(true)}
+        onMouseLeave={() => { if (!sidebarPinned) setSidebarOpen(false) }}
+        className={`fixed inset-y-0 left-0 z-50 bg-card border-r border-border transform transition-transform duration-300 overflow-hidden ${
+          sidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full w-0'
         }`}
       >
         <div className="flex h-16 items-center justify-between px-6 border-b border-border">
-          <h1 className="text-xl font-bold text-foreground">TraderMate</h1>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden p-2 rounded-md hover:bg-accent"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                const newPinned = !sidebarPinned
+                setSidebarPinned(newPinned)
+                setSidebarOpen(newPinned)
+              }}
+              className="p-2 rounded-md hover:bg-accent"
+              aria-label="Toggle sidebar"
+              aria-pressed={sidebarPinned}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="text-xl font-bold text-foreground">TraderMate</h1>
+          </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
@@ -68,28 +89,26 @@ export default function Layout() {
               <p className="text-sm font-medium">{user?.username}</p>
               <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-md hover:bg-destructive hover:text-destructive-foreground transition-colors"
-            >
-              <LogOut className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-md hover:bg-destructive hover:text-destructive-foreground transition-colors"
+              >
+                <LogOut className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </div>
       </aside>
 
       {/* Main content */}
       <div className={`transition-all duration-300 ${sidebarOpen ? 'lg:pl-64' : ''}`}>
-        {/* Header */}
-        <header className="h-16 border-b border-border bg-card flex items-center px-6">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-md hover:bg-accent mr-4"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <div className="flex-1" />
-        </header>
+        {/* Header (hidden by default) */}
+        {showHeader && (
+          <header className="h-16 border-b border-border bg-card flex items-center px-6">
+            <div className="flex-1" />
+          </header>
+        )}
 
         {/* Page content */}
         <main className="p-6">
