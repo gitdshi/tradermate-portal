@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Calendar, CheckCircle, Clock, DollarSign, Eye, Loader, Trash2, TrendingUp, XCircle, ChevronDown, ChevronUp, BarChart3, Percent, TrendingDown } from 'lucide-react'
+import { BarChart3, Calendar, CheckCircle, ChevronDown, ChevronUp, Clock, DollarSign, Eye, Loader, Percent, Trash2, TrendingDown, TrendingUp, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { queueAPI } from '../lib/api'
 
@@ -10,6 +10,7 @@ interface BacktestJobListProps {
 export default function BacktestJobList({ onViewResults }: BacktestJobListProps) {
   const [filter, setFilter] = useState<string>('all')
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
+  const [jobDetails, setJobDetails] = useState<Record<string, any>>({})
   const queryClient = useQueryClient()
 
   const { data: jobsData, isLoading } = useQuery({
@@ -33,8 +34,24 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
     }
   }
 
-  const toggleExpand = (jobId: string) => {
-    setExpandedJobId(expandedJobId === jobId ? null : jobId)
+  const toggleExpand = async (jobId: string) => {
+    if (expandedJobId === jobId) {
+      setExpandedJobId(null)
+    } else {
+      setExpandedJobId(jobId)
+      // Fetch job details if not already cached
+      if (!jobDetails[jobId]) {
+        try {
+          const response = await queueAPI.getJob(jobId)
+          setJobDetails(prev => ({
+            ...prev,
+            [jobId]: response.data
+          }))
+        } catch (error) {
+          console.error('Failed to fetch job details:', error)
+        }
+      }
+    }
   }
 
   const jobs = jobsData?.data || []
@@ -171,7 +188,9 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
               : job.symbol || ''
             const strategyDisplay = job.strategy_name || job.strategy_class || ''
             const isExpanded = expandedJobId === job.job_id
-            const hasStats = job.result?.statistics && (job.status === 'finished' || job.status === 'completed')
+            const jobDetail = jobDetails[job.job_id]
+            const hasStats = (job.status === 'finished' || job.status === 'completed')
+            const stats = jobDetail?.result?.statistics
 
             return (
             <div
@@ -298,7 +317,7 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
               </div>
 
               {/* Quick Metrics View */}
-              {isExpanded && hasStats && job.result?.statistics && (
+              {isExpanded && stats && (
                 <div className="px-4 pb-4 border-t border-border/50 pt-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-muted/30 rounded-lg p-3">
@@ -307,9 +326,9 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                         <span className="text-xs text-muted-foreground">Total Return</span>
                       </div>
                       <div className={`text-lg font-bold ${
-                        (job.result.statistics.total_return || 0) >= 0 ? 'text-red-500' : 'text-green-500'
+                        (stats.total_return || 0) >= 0 ? 'text-red-500' : 'text-green-500'
                       }`}>
-                        {(job.result.statistics.total_return || 0).toFixed(2)}%
+                        {(stats.total_return || 0).toFixed(2)}%
                       </div>
                     </div>
                     <div className="bg-muted/30 rounded-lg p-3">
@@ -318,7 +337,7 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                         <span className="text-xs text-muted-foreground">Annual Return</span>
                       </div>
                       <div className="text-lg font-bold">
-                        {(job.result.statistics.annual_return || 0).toFixed(2)}%
+                        {(stats.annual_return || 0).toFixed(2)}%
                       </div>
                     </div>
                     <div className="bg-muted/30 rounded-lg p-3">
@@ -327,7 +346,7 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                         <span className="text-xs text-muted-foreground">Sharpe Ratio</span>
                       </div>
                       <div className="text-lg font-bold">
-                        {(job.result.statistics.sharpe_ratio || 0).toFixed(2)}
+                        {(stats.sharpe_ratio || 0).toFixed(2)}
                       </div>
                     </div>
                     <div className="bg-muted/30 rounded-lg p-3">
@@ -336,7 +355,7 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                         <span className="text-xs text-muted-foreground">Max Drawdown</span>
                       </div>
                       <div className="text-lg font-bold text-green-500">
-                        {(job.result.statistics.max_drawdown_percent || job.result.statistics.max_drawdown || 0).toFixed(2)}%
+                        {(stats.max_drawdown_percent || stats.max_drawdown || 0).toFixed(2)}%
                       </div>
                     </div>
                   </div>
