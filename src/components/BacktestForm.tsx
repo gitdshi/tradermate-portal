@@ -32,9 +32,16 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
   const [initialCapital, setInitialCapital] = useState('100000')
   const [rate, setRate] = useState('0.0003')
   const [slippage, setSlippage] = useState('0.0001')
+  const [benchmark, setBenchmark] = useState('399300.SZ')
   const [error, setError] = useState('')
   
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Benchmark options (can be extended later)
+  const benchmarkOptions = [
+    { value: '399300.SZ', label: 'HS300 (沪深300)' },
+    // Add more benchmarks here as needed
+  ]
 
   // Set default dates (recent one year)
   useEffect(() => {
@@ -209,6 +216,7 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
       initial_capital: parseFloat(initialCapital),
       rate: parseFloat(rate),
       slippage: parseFloat(slippage),
+      benchmark: benchmark,
     })
   }
 
@@ -398,6 +406,25 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
                 step="0.0001"
               />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="benchmark" className="block text-sm font-medium mb-2">
+              Benchmark *
+            </label>
+            <select
+              id="benchmark"
+              value={benchmark}
+              onChange={(e) => setBenchmark(e.target.value)}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              required
+            >
+              {benchmarkOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </form>
 

@@ -54,9 +54,19 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
   const symbolName = jobData?.symbol_name || result?.symbol_name || ''
   const symbolCode = jobData?.symbol || result?.symbol || ''
   const strategyName = jobData?.strategy_name || result?.strategy_name || ''
+  const benchmark = jobData?.benchmark || result?.benchmark || stats.benchmark_symbol || '399300.SZ'
   const symbolDisplay = symbolName
     ? `${symbolCode} (${symbolName})`
     : symbolCode
+
+  // Benchmark display mapping
+  const getBenchmarkLabel = (code: string): string => {
+    const benchmarkMap: Record<string, string> = {
+      '399300.SZ': 'HS300 (沪深300)',
+      // Add more benchmarks here
+    }
+    return benchmarkMap[code] || code
+  }
 
   if (isLoading) {
     return (
@@ -92,6 +102,9 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
             <h2 className="text-xl font-semibold">Backtest Results</h2>
             <p className="text-sm text-muted-foreground mt-1 font-medium">
               {strategyName ? `${strategyName} • ${symbolDisplay} • ${result.start_date} to ${result.end_date}` : `${symbolDisplay} • ${result.start_date} to ${result.end_date}`}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Benchmark: {getBenchmarkLabel(benchmark)}
             </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-md transition-colors">
@@ -165,7 +178,7 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
             <div className="bg-muted/30 rounded-lg p-4">
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
                 <Target className="h-4 w-4" />
-                Benchmark Comparison ({stats.benchmark_symbol || 'HS300'})
+                Benchmark Comparison ({getBenchmarkLabel(benchmark)})
               </h3>
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -308,7 +321,7 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
                     benchmarkData={result.benchmark_curve}
                     trades={result.trades}
                     stockSymbol={symbolDisplay}
-                    benchmarkSymbol={stats.benchmark_symbol || 'HS300'}
+                    benchmarkSymbol={getBenchmarkLabel(benchmark)}
                   />
                 </div>
               ) : (

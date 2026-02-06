@@ -31,6 +31,7 @@ export interface BacktestRequest {
   slippage?: number
   size?: number
   pricetick?: number
+  benchmark?: string
   parameters?: Record<string, unknown>
 }
 
@@ -43,6 +44,7 @@ export interface BacktestResult {
   start_date: string
   end_date: string
   initial_capital: number
+  benchmark?: string
   statistics?: {
     total_return: number
     annual_return: number
