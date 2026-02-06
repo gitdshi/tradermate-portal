@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     Bar,
     CartesianGrid,
@@ -40,53 +40,6 @@ interface TradingChartProps {
   trades?: Trade[]
   stockSymbol?: string
   benchmarkSymbol?: string
-}
-
-// Custom candlestick renderer
-const Candlestick = (props: any) => {
-  const { x, width, payload, yAxis } = props
-  if (!payload || !yAxis || payload.open == null || payload.high == null || payload.low == null || payload.close == null) {
-    return null
-  }
-
-  const { open, high, low, close } = payload
-  const isUp = close >= open
-  const color = isUp ? '#10b981' : '#ef4444'
-  const fill = isUp ? '#10b981' : '#ef4444'
-
-  // Convert prices to y coordinates using yAxis scale
-  const yOpen = yAxis.scale(open)
-  const yClose = yAxis.scale(close)
-  const yHigh = yAxis.scale(high)
-  const yLow = yAxis.scale(low)
-
-  const bodyHeight = Math.abs(yClose - yOpen)
-  const bodyY = Math.min(yOpen, yClose)
-  const wickX = x + width / 2
-
-  return (
-    <g>
-      {/* Wick (high-low line) */}
-      <line
-        x1={wickX}
-        y1={yHigh}
-        x2={wickX}
-        y2={yLow}
-        stroke={color}
-        strokeWidth={1}
-      />
-      {/* Body (open-close rectangle) */}
-      <rect
-        x={x + width * 0.2}
-        y={bodyY}
-        width={width * 0.6}
-        height={bodyHeight || 1}
-        fill={fill}
-        stroke={color}
-        strokeWidth={1}
-      />
-    </g>
-  )
 }
 
 function LongEntryShape(props: any) {
@@ -145,6 +98,9 @@ export default function TradingChart({
   const [zoomState, setZoomState] = useState({ startIndex: 0, endIndex: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState(0)
+  const chartContainerRef = useRef<HTMLDivElement>(null)
+  const zoomStateRef = useRef(zoomState)
+  const chartDataLengthRef = useRef(0)
   
   const { chartData, tradeMarkers } = useMemo(() => {
     if (!stockPriceData || stockPriceData.length === 0) {
@@ -230,6 +186,10 @@ export default function TradingChart({
     return { chartData: data, tradeMarkers: markers }
   }, [stockPriceData, benchmarkData, trades])
 
+  // Keep refs in sync for native event handlers
+  zoomStateRef.current = zoomState
+  chartDataLengthRef.current = chartData.length
+
   if (chartData.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 bg-muted/30 rounded-lg">
@@ -240,15 +200,22 @@ export default function TradingChart({
 
   const hasBenchmark = chartData.some(d => d.benchmarkPrice !== undefined)
 
-  // Calculate price domains for each axis
-  const stockPrices = chartData.map(d => d.stockPrice).filter(p => p !== undefined)
-  const tradePrices = tradeMarkers.map(t => t.price)
-  const allStockPrices = [...stockPrices, ...tradePrices]
-  const stockMin = Math.min(...allStockPrices)
-  const stockMax = Math.max(...allStockPrices)
+  // Get visible data based on zoom state
+  const visibleData = chartData.slice(zoomState.startIndex, zoomState.endIndex + 1)
+
+  // Calculate price domains from visible data (includes OHLC for candlesticks)
+  const visibleStockPrices = visibleData.flatMap(d =>
+    [d.open, d.high, d.low, d.close].filter((v): v is number => v != null)
+  )
+  const visibleTradePrices = tradeMarkers
+    .filter(t => visibleData.some(d => d.date === t.date))
+    .map(t => t.price)
+  const allVisiblePrices = [...visibleStockPrices, ...visibleTradePrices]
+  const stockMin = allVisiblePrices.length > 0 ? Math.min(...allVisiblePrices) : 0
+  const stockMax = allVisiblePrices.length > 0 ? Math.max(...allVisiblePrices) : 100
   const stockPadding = (stockMax - stockMin) * 0.1 || 1
 
-  const benchmarkPricesArr = chartData.map(d => d.benchmarkPrice).filter((p): p is number => p !== undefined)
+  const benchmarkPricesArr = visibleData.map(d => d.benchmarkPrice).filter((p): p is number => p !== undefined)
   const benchMin = benchmarkPricesArr.length > 0 ? Math.min(...benchmarkPricesArr) : 0
   const benchMax = benchmarkPricesArr.length > 0 ? Math.max(...benchmarkPricesArr) : 100
   const benchPadding = (benchMax - benchMin) * 0.1 || 1
@@ -262,28 +229,39 @@ export default function TradingChart({
     setZoomState({ startIndex: 0, endIndex: chartData.length - 1 })
   }
 
-  // Handle mouse wheel zoom
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? 1 : -1
-    const zoomFactor = 0.1
-    const currentRange = zoomState.endIndex - zoomState.startIndex
-    const zoomAmount = Math.max(1, Math.floor(currentRange * zoomFactor))
-    
-    if (delta > 0) {
-      // Zoom out
-      const newStart = Math.max(0, zoomState.startIndex - zoomAmount)
-      const newEnd = Math.min(chartData.length - 1, zoomState.endIndex + zoomAmount)
-      setZoomState({ startIndex: newStart, endIndex: newEnd })
-    } else {
-      // Zoom in
-      const newStart = Math.min(zoomState.startIndex + zoomAmount, zoomState.endIndex - 10)
-      const newEnd = Math.max(zoomState.endIndex - zoomAmount, zoomState.startIndex + 10)
-      if (newEnd > newStart + 5) {
+  // Native wheel handler to prevent page scroll and zoom chart
+  useEffect(() => {
+    const el = chartContainerRef.current
+    if (!el) return
+
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const state = zoomStateRef.current
+      const length = chartDataLengthRef.current
+      if (length === 0) return
+
+      const delta = e.deltaY > 0 ? 1 : -1
+      const zoomFactor = 0.1
+      const currentRange = state.endIndex - state.startIndex
+      const zoomAmount = Math.max(1, Math.floor(currentRange * zoomFactor))
+
+      if (delta > 0) {
+        const newStart = Math.max(0, state.startIndex - zoomAmount)
+        const newEnd = Math.min(length - 1, state.endIndex + zoomAmount)
         setZoomState({ startIndex: newStart, endIndex: newEnd })
+      } else {
+        const newStart = Math.min(state.startIndex + zoomAmount, state.endIndex - 10)
+        const newEnd = Math.max(state.endIndex - zoomAmount, state.startIndex + 10)
+        if (newEnd > newStart + 5) {
+          setZoomState({ startIndex: newStart, endIndex: newEnd })
+        }
       }
     }
-  }
+
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
 
   // Handle mouse drag to pan
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -293,15 +271,14 @@ export default function TradingChart({
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return
-    
     const diff = dragStart - e.clientX
     const pixelsPerPoint = 800 / (zoomState.endIndex - zoomState.startIndex)
     const pointsToMove = Math.round(diff / pixelsPerPoint)
-    
+
     if (Math.abs(pointsToMove) > 0) {
       const newStart = zoomState.startIndex + pointsToMove
       const newEnd = zoomState.endIndex + pointsToMove
-      
+
       if (newStart >= 0 && newEnd < chartData.length) {
         setZoomState({ startIndex: newStart, endIndex: newEnd })
         setDragStart(e.clientX)
@@ -316,9 +293,6 @@ export default function TradingChart({
   const handleMouseLeave = () => {
     setIsDragging(false)
   }
-
-  // Get visible data based on zoom state
-  const visibleData = chartData.slice(zoomState.startIndex, zoomState.endIndex + 1)
 
   return (
     <div className="w-full">
@@ -359,8 +333,8 @@ export default function TradingChart({
       </div>
 
       <div 
-        className="h-80 cursor-move"
-        onWheel={handleWheel}
+        ref={chartContainerRef}
+        className={`h-80 select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -454,8 +428,48 @@ export default function TradingChart({
               yAxisId="left"
               dataKey="close"
               name={stockSymbol}
-              shape={<Candlestick />}
+              fill="transparent"
+              stroke="transparent"
               isAnimationActive={false}
+              shape={(props: any) => {
+                const { x, y, width, height, payload } = props
+                if (!payload || payload.open == null || payload.high == null ||
+                    payload.low == null || payload.close == null || !height) return null
+
+                const { open, high, low, close } = payload
+                const domainBase = stockMin - stockPadding
+                const range = close - domainBase
+                if (range <= 0) return null
+
+                const ppu = height / range
+                const yForPrice = (price: number) => y + (close - price) * ppu
+
+                const yOpen = yForPrice(open)
+                const yClose = y
+                const yHigh = yForPrice(high)
+                const yLow = yForPrice(low)
+
+                const isUp = close >= open
+                const color = isUp ? '#10b981' : '#ef4444'
+                const bodyY = Math.min(yOpen, yClose)
+                const bodyHeight = Math.abs(yClose - yOpen) || 1
+                const wickX = x + width / 2
+
+                return (
+                  <g>
+                    <line x1={wickX} y1={yHigh} x2={wickX} y2={yLow} stroke={color} strokeWidth={1} />
+                    <rect
+                      x={x + width * 0.15}
+                      y={bodyY}
+                      width={width * 0.7}
+                      height={bodyHeight}
+                      fill={color}
+                      stroke={color}
+                      strokeWidth={0.5}
+                    />
+                  </g>
+                )
+              }}
             />
             {/* Benchmark price line (right axis) */}
             {hasBenchmark && (
