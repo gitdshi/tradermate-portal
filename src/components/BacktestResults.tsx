@@ -210,6 +210,8 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
               <EquityCurveChart
                 data={result.equity_curve}
                 initialCapital={result.initial_capital || 100000}
+                benchmarkData={result.benchmark_curve}
+                benchmarkSymbol={getBenchmarkLabel(benchmark)}
               />
             </div>
           )}
