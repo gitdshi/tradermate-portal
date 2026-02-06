@@ -1,8 +1,10 @@
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import {
+    Bar,
     Brush,
     CartesianGrid,
+    ComposedChart,
     Legend,
     Line,
     ReferenceDot,
@@ -43,7 +45,7 @@ interface TradingChartProps {
 
 // Custom candlestick renderer
 const Candlestick = (props: any) => {
-  const { x, y, width, payload, yAxis } = props
+  const { x, width, payload, yAxis } = props
   if (!payload || !yAxis || payload.open == null || payload.high == null || payload.low == null || payload.close == null) {
     return null
   }
