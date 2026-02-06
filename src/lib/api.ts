@@ -113,7 +113,9 @@ export const queueAPI = {
   submitBacktest: (data: {
     strategy_id?: number
     strategy_class?: string
+    strategy_name?: string
     symbol: string
+    symbol_name?: string
     start_date: string
     end_date: string
     initial_capital?: number

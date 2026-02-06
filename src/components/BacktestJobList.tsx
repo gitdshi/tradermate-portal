@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, Clock, Eye, Loader, Trash2, XCircle } from 'lucide-react'
+import { Calendar, CheckCircle, Clock, DollarSign, Eye, Loader, Trash2, TrendingUp, XCircle } from 'lucide-react'
 import { useState } from 'react'
 import { queueAPI } from '../lib/api'
 
@@ -142,17 +142,33 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
             progress?: number
             progress_message?: string
             error?: string
-          }) => (
+            symbol?: string
+            symbol_name?: string
+            strategy_class?: string
+            strategy_name?: string
+            start_date?: string
+            end_date?: string
+            initial_capital?: number
+            rate?: number
+            slippage?: number
+          }) => {
+            const symbolDisplay = job.symbol_name 
+              ? `${job.symbol || ''} (${job.symbol_name})`
+              : job.symbol || ''
+            const strategyDisplay = job.strategy_name || job.strategy_class || ''
+
+            return (
             <div
               key={job.job_id}
               className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
+                  {/* Top row: status + timestamp */}
                   <div className="flex items-center gap-3 mb-2">
                     {getStatusIcon(job.status)}
                     <span
-                      className={`px-2 py-1 rounded text-xs font-medium capitalize ${getStatusColor(
+                      className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getStatusColor(
                         job.status
                       )}`}
                     >
@@ -163,12 +179,50 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                     </span>
                   </div>
 
-                  <div className="text-sm text-muted-foreground mb-2">
-                    Job ID: <span className="font-mono text-xs">{job.job_id}</span>
+                  {/* Main info row: strategy + symbol */}
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    {strategyDisplay && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium">
+                        <TrendingUp className="h-3 w-3" />
+                        {strategyDisplay}
+                      </span>
+                    )}
+                    {symbolDisplay && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                        {symbolDisplay}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Parameters row */}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                    {job.start_date && job.end_date && (
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {job.start_date} ~ {job.end_date}
+                      </span>
+                    )}
+                    {job.initial_capital && (
+                      <span className="inline-flex items-center gap-1">
+                        <DollarSign className="h-3 w-3" />
+                        {Number(job.initial_capital).toLocaleString()}
+                      </span>
+                    )}
+                    {job.rate !== undefined && (
+                      <span>Rate: {job.rate}</span>
+                    )}
+                    {job.slippage !== undefined && (
+                      <span>Slip: {job.slippage}</span>
+                    )}
+                  </div>
+
+                  {/* Job ID */}
+                  <div className="text-xs text-muted-foreground/60 mt-1">
+                    <span className="font-mono">{job.job_id}</span>
                   </div>
 
                   {job.progress !== undefined && job.progress > 0 && (
-                    <div className="mb-2">
+                    <div className="mt-2">
                       <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                         <span>{job.progress_message || 'Processing...'}</span>
                         <span>{job.progress}%</span>
@@ -210,7 +264,7 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                 </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
     </div>

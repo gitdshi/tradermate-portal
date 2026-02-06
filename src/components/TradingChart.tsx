@@ -38,6 +38,53 @@ interface TradingChartProps {
   benchmarkSymbol?: string
 }
 
+// Shape renderers for ReferenceDot — receives cx, cy as pixel coordinates
+function LongEntryShape(props: any) {
+  const { cx, cy } = props
+  if (cx == null || cy == null) return null
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={6} fill="#10b981" stroke="#fff" strokeWidth={1.5} />
+      <polygon points={`${cx},${cy - 3} ${cx - 3},${cy + 2} ${cx + 3},${cy + 2}`} fill="#fff" />
+    </g>
+  )
+}
+
+function ShortEntryShape(props: any) {
+  const { cx, cy } = props
+  if (cx == null || cy == null) return null
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={6} fill="#ef4444" stroke="#fff" strokeWidth={1.5} />
+      <polygon points={`${cx},${cy + 3} ${cx - 3},${cy - 2} ${cx + 3},${cy - 2}`} fill="#fff" />
+    </g>
+  )
+}
+
+function LongExitShape(props: any) {
+  const { cx, cy } = props
+  if (cx == null || cy == null) return null
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={6} fill="#10b981" stroke="#fff" strokeWidth={1.5} />
+      <line x1={cx - 2.5} y1={cy - 2.5} x2={cx + 2.5} y2={cy + 2.5} stroke="#fff" strokeWidth={1.5} />
+      <line x1={cx - 2.5} y1={cy + 2.5} x2={cx + 2.5} y2={cy - 2.5} stroke="#fff" strokeWidth={1.5} />
+    </g>
+  )
+}
+
+function ShortExitShape(props: any) {
+  const { cx, cy } = props
+  if (cx == null || cy == null) return null
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={6} fill="#ef4444" stroke="#fff" strokeWidth={1.5} />
+      <line x1={cx - 2.5} y1={cy - 2.5} x2={cx + 2.5} y2={cy + 2.5} stroke="#fff" strokeWidth={1.5} />
+      <line x1={cx - 2.5} y1={cy + 2.5} x2={cx + 2.5} y2={cy - 2.5} stroke="#fff" strokeWidth={1.5} />
+    </g>
+  )
+}
+
 export default function TradingChart({
   stockPriceData,
   benchmarkData,
@@ -45,6 +92,7 @@ export default function TradingChart({
   stockSymbol = 'Stock',
   benchmarkSymbol = 'Benchmark',
 }: TradingChartProps) {
+  
   const { chartData, tradeMarkers } = useMemo(() => {
     if (!stockPriceData || stockPriceData.length === 0) {
       return { chartData: [], tradeMarkers: [] }
@@ -65,7 +113,7 @@ export default function TradingChart({
       })
     }
 
-    // Build chart data
+    // Build chart data with formatted date as key for X axis
     const data = stockPriceData.map(point => {
       const dt = new Date(point.datetime)
       const dateKey = dt.toISOString().split('T')[0]
@@ -80,39 +128,47 @@ export default function TradingChart({
       }
     })
 
-    // Process trades to create markers
+    // Process trades to create markers — match to chart date labels
     const markers: Array<{
-      dateKey: string
-      date: string
-      fullDate: string
-      price: number
-      direction: string
-      offset: string
+      date: string      // formatted date label (must match X axis)
+      price: number     // trade price (on stock Y axis)
       isLong: boolean
       isEntry: boolean
+      direction: string
+      offset: string
     }> = []
 
     if (trades && trades.length > 0) {
+      // Build a dateKey -> formatted date label lookup
+      const dateKeyToLabel = new Map<string, string>()
+      data.forEach(d => dateKeyToLabel.set(d.dateKey, d.date))
+
       trades.forEach(trade => {
         if (trade.datetime && trade.price) {
           const dt = new Date(trade.datetime)
           const dateKey = dt.toISOString().split('T')[0]
-          const isLong = trade.direction === '多' || trade.direction === 'LONG'
-          const isEntry = trade.offset === '开' || trade.offset === 'OPEN'
+          const dateLabel = dateKeyToLabel.get(dateKey)
+          if (!dateLabel) return // skip if date not in chart range
+
+          const dir = (trade.direction || '').toUpperCase()
+          const ofs = (trade.offset || '').toUpperCase()
+          const isLong = dir === '多' || dir === 'LONG'
+          const isEntry = ofs === '开' || ofs === 'OPEN'
 
           markers.push({
-            dateKey,
-            date: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            fullDate: trade.datetime,
+            date: dateLabel,
             price: trade.price,
-            direction: trade.direction || '',
-            offset: trade.offset || '',
             isLong,
             isEntry,
+            direction: trade.direction || '',
+            offset: trade.offset || '',
           })
         }
       })
     }
+
+    console.log('TradingChart - chartData points:', data.length, 'tradeMarkers:', markers.length)
+    if (markers.length > 0) console.log('TradingChart - marker sample:', markers[0])
 
     return { chartData: data, tradeMarkers: markers }
   }, [stockPriceData, benchmarkData, trades])
@@ -127,90 +183,18 @@ export default function TradingChart({
 
   const hasBenchmark = chartData.some(d => d.benchmarkPrice !== undefined)
 
-  // Calculate price domain
+  // Calculate price domains for each axis
   const stockPrices = chartData.map(d => d.stockPrice).filter(p => p !== undefined)
-  const benchmarkPrices = chartData.map(d => d.benchmarkPrice).filter(p => p !== undefined)
   const tradePrices = tradeMarkers.map(t => t.price)
-  const allPrices = [...stockPrices, ...benchmarkPrices, ...tradePrices]
-  const minPrice = Math.min(...allPrices)
-  const maxPrice = Math.max(...allPrices)
-  const padding = (maxPrice - minPrice) * 0.1
+  const allStockPrices = [...stockPrices, ...tradePrices]
+  const stockMin = Math.min(...allStockPrices)
+  const stockMax = Math.max(...allStockPrices)
+  const stockPadding = (stockMax - stockMin) * 0.1 || 1
 
-  // Custom dot component for trade markers
-  const CustomDot = (props: any) => {
-    const { cx, cy, payload } = props
-    if (!payload) return null
-
-    // Find trades at this date
-    const tradesAtDate = tradeMarkers.filter(t => t.dateKey === payload.dateKey)
-    if (tradesAtDate.length === 0) return null
-
-    return (
-      <>
-        {tradesAtDate.map((trade, idx) => {
-          // Map price to pixel position (approximate)
-          const yPixel = cy - ((trade.price - minPrice) / (maxPrice - minPrice)) * 200
-
-          if (trade.isEntry) {
-            // Entry: Arrow pointing up (long) or down (short)
-            return (
-              <g key={idx}>
-                <circle
-                  cx={cx}
-                  cy={yPixel}
-                  r={6}
-                  fill={trade.isLong ? '#10b981' : '#ef4444'}
-                  stroke="#fff"
-                  strokeWidth={2}
-                />
-                {trade.isLong ? (
-                  <polygon
-                    points={`${cx},${yPixel - 3} ${cx - 3},${yPixel + 2} ${cx + 3},${yPixel + 2}`}
-                    fill="#fff"
-                  />
-                ) : (
-                  <polygon
-                    points={`${cx},${yPixel + 3} ${cx - 3},${yPixel - 2} ${cx + 3},${yPixel - 2}`}
-                    fill="#fff"
-                  />
-                )}
-              </g>
-            )
-          } else {
-            // Exit: X mark
-            return (
-              <g key={idx}>
-                <circle
-                  cx={cx}
-                  cy={yPixel}
-                  r={6}
-                  fill={trade.isLong ? '#10b981' : '#ef4444'}
-                  stroke="#fff"
-                  strokeWidth={2}
-                />
-                <line
-                  x1={cx - 3}
-                  y1={yPixel - 3}
-                  x2={cx + 3}
-                  y2={yPixel + 3}
-                  stroke="#fff"
-                  strokeWidth={2}
-                />
-                <line
-                  x1={cx - 3}
-                  y1={yPixel + 3}
-                  x2={cx + 3}
-                  y2={yPixel - 3}
-                  stroke="#fff"
-                  strokeWidth={2}
-                />
-              </g>
-            )
-          }
-        })}
-      </>
-    )
-  }
+  const benchmarkPricesArr = chartData.map(d => d.benchmarkPrice).filter((p): p is number => p !== undefined)
+  const benchMin = benchmarkPricesArr.length > 0 ? Math.min(...benchmarkPricesArr) : 0
+  const benchMax = benchmarkPricesArr.length > 0 ? Math.max(...benchmarkPricesArr) : 100
+  const benchPadding = (benchMax - benchMin) * 0.1 || 1
 
   return (
     <div className="w-full">
@@ -246,23 +230,38 @@ export default function TradingChart({
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
-            margin={{ top: 10, right: 30, left: 10, bottom: 10 }}
+            margin={{ top: 10, right: 60, left: 10, bottom: 10 }}
           >
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11 }}
               tickLine={false}
               axisLine={false}
               interval="preserveStartEnd"
             />
+            {/* Left Y-axis: Stock Price */}
             <YAxis
-              domain={[minPrice - padding, maxPrice + padding]}
-              tick={{ fontSize: 12 }}
+              yAxisId="left"
+              orientation="left"
+              domain={[stockMin - stockPadding, stockMax + stockPadding]}
+              tick={{ fontSize: 11, fill: '#10b981' }}
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) => value.toFixed(2)}
             />
+            {/* Right Y-axis: Benchmark Price */}
+            {hasBenchmark && (
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                domain={[benchMin - benchPadding, benchMax + benchPadding]}
+                tick={{ fontSize: 11, fill: '#f59e0b' }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => value.toFixed(0)}
+              />
+            )}
             <Tooltip
               contentStyle={{
                 backgroundColor: 'hsl(var(--card))',
@@ -271,24 +270,26 @@ export default function TradingChart({
               }}
               labelStyle={{ color: 'hsl(var(--foreground))' }}
               formatter={(value: any, name: any) => {
-                if (value === undefined) return ['N/A', name]
-                if (name === 'stockPrice') {
-                  return [value.toFixed(2), stockSymbol]
+                if (value === undefined || value === null) return ['N/A', name]
+                if (name === stockSymbol) {
+                  return [Number(value).toFixed(2), stockSymbol]
                 }
-                if (name === 'benchmarkPrice') {
-                  return [value.toFixed(2), benchmarkSymbol]
+                if (name === benchmarkSymbol) {
+                  return [Number(value).toFixed(2), benchmarkSymbol]
                 }
                 return [value, name]
               }}
-              labelFormatter={(label, payload) => {
+              labelFormatter={(_label, payload) => {
                 if (payload && payload[0]) {
-                  return payload[0].payload.fullDate
+                  return payload[0].payload.fullDate?.split('T')[0] || _label
                 }
-                return label
+                return _label
               }}
             />
             <Legend wrapperStyle={{ paddingTop: '10px' }} iconType="line" />
+            {/* Stock price line (left axis) */}
             <Line
+              yAxisId="left"
               type="monotone"
               dataKey="stockPrice"
               name={stockSymbol}
@@ -297,8 +298,10 @@ export default function TradingChart({
               dot={false}
               activeDot={{ r: 4, strokeWidth: 2 }}
             />
+            {/* Benchmark price line (right axis) */}
             {hasBenchmark && (
               <Line
+                yAxisId="right"
                 type="monotone"
                 dataKey="benchmarkPrice"
                 name={benchmarkSymbol}
@@ -308,18 +311,22 @@ export default function TradingChart({
                 activeDot={{ r: 4, strokeWidth: 2 }}
               />
             )}
-            {/* Trade markers */}
+            {/* Trade markers on stock price axis */}
             {tradeMarkers.map((trade, idx) => {
-              const dataPoint = chartData.find(d => d.dateKey === trade.dateKey)
-              if (!dataPoint) return null
+              const ShapeComponent = trade.isEntry
+                ? (trade.isLong ? LongEntryShape : ShortEntryShape)
+                : (trade.isLong ? LongExitShape : ShortExitShape)
 
               return (
                 <ReferenceDot
-                  key={idx}
-                  x={dataPoint.date}
+                  key={`trade-${idx}`}
+                  yAxisId="left"
+                  x={trade.date}
                   y={trade.price}
-                  r={0}
-                  shape={<CustomDot />}
+                  r={6}
+                  fill="transparent"
+                  stroke="transparent"
+                  shape={<ShapeComponent />}
                 />
               )
             })}

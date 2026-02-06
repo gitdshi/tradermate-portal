@@ -34,9 +34,27 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
   const result = jobData?.result
   const stats = result?.statistics || {}
   
-  const symbolDisplay = result?.symbol_name 
-    ? `${result.symbol} (${result.symbol_name})`
-    : result?.symbol || ''
+  // Debug: Log the data structure
+  if (jobData && !isLoading) {
+    console.log('jobData:', jobData)
+    console.log('result:', result)
+    console.log('jobData.status:', jobData.status)
+    console.log('stock_price_curve length:', result?.stock_price_curve?.length)
+    console.log('benchmark_curve length:', result?.benchmark_curve?.length)
+    console.log('trades length:', result?.trades?.length)
+    if (result?.benchmark_curve) {
+      console.log('benchmark_curve sample:', result.benchmark_curve[0])
+    }
+    if (result?.trades && result.trades.length > 0) {
+      console.log('trades sample:', result.trades[0])
+    }
+  }
+  
+  const symbolName = result?.symbol_name || jobData?.symbol_name || ''
+  const symbolCode = result?.symbol || jobData?.symbol || ''
+  const symbolDisplay = symbolName
+    ? `${symbolCode} (${symbolName})`
+    : symbolCode
 
   if (isLoading) {
     return (
@@ -45,6 +63,18 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
           <div className="flex items-center justify-center gap-3">
             <Loader className="h-6 w-6 animate-spin" />
             <span>Loading results...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!result) {
+    return (
+      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-6xl p-8">
+          <div className="text-center">
+            <p className="text-muted-foreground">No results available</p>
           </div>
         </div>
       </div>
@@ -265,7 +295,7 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
               </div>
 
               {/* Price Chart with Trades */}
-              {(result?.stock_price_curve || result?.benchmark_curve) && (
+              {(result?.stock_price_curve || result?.benchmark_curve) ? (
                 <div className="bg-muted/30 rounded-lg p-4">
                   <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
                     <Activity className="h-4 w-4" />
@@ -278,6 +308,16 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
                     stockSymbol={symbolDisplay}
                     benchmarkSymbol={stats.benchmark_symbol || 'HS300'}
                   />
+                </div>
+              ) : (
+                <div className="bg-muted/30 rounded-lg p-4">
+                  <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    Price Chart with Trade Signals
+                  </h3>
+                  <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+                    Price data not available. Run a new backtest to see the chart.
+                  </div>
                 </div>
               )}
 

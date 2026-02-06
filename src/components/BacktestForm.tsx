@@ -24,6 +24,7 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
 
   const [strategyId, setStrategyId] = useState<string>('')
   const [symbol, setSymbol] = useState('')
+  const [symbolName, setSymbolName] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
   const [startDate, setStartDate] = useState('')
@@ -156,6 +157,7 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
 
   const handleStockSelect = (stock: Stock) => {
     setSymbol(stock.vt_symbol)
+    setSymbolName(stock.name)
     setSearchTerm(`${stock.symbol} - ${stock.name}`)
     setShowDropdown(false)
   }
@@ -166,6 +168,7 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
     // If user clears the search, clear the symbol
     if (!value) {
       setSymbol('')
+      setSymbolName('')
     }
   }
 
@@ -193,9 +196,13 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
       return
     }
 
+    const selectedStrategy = strategies.find((s: any) => String(s.id) === strategyId)
+
     submitMutation.mutate({
       strategy_id: strategyId ? parseInt(strategyId) : undefined,
+      strategy_name: selectedStrategy?.name || '',
       symbol: symbol.trim(),
+      symbol_name: symbolName,
       start_date: startDate,
       end_date: endDate,
       parameters: {},
