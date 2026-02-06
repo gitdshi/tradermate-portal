@@ -146,9 +146,9 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
               value={`${(stats.total_return || 0).toFixed(2)}%`}
               icon={
                 (stats.total_return || 0) >= 0 ? (
-                  <TrendingUp className="h-5 w-5 text-green-500" />
+                  <TrendingUp className="h-5 w-5 text-red-500" />
                 ) : (
-                  <TrendingDown className="h-5 w-5 text-red-500" />
+                  <TrendingDown className="h-5 w-5 text-green-500" />
                 )
               }
               positive={(stats.total_return || 0) >= 0}
@@ -166,7 +166,7 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
             <StatCard
               title="Max Drawdown"
               value={`${(stats.max_drawdown_percent || stats.max_drawdown || 0).toFixed(2)}%`}
-              icon={<TrendingDown className="h-5 w-5 text-red-500" />}
+              icon={<TrendingDown className="h-5 w-5 text-green-500" />}
             />
           </div>
 
@@ -180,7 +180,7 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Alpha (Annualized)</div>
-                  <div className={`text-2xl font-bold ${(stats.alpha || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  <div className={`text-2xl font-bold ${(stats.alpha || 0) >= 0 ? 'text-red-500' : 'text-green-500'}`}>
                     {stats.alpha !== null && stats.alpha !== undefined ? `${(stats.alpha * 100).toFixed(2)}%` : 'N/A'}
                   </div>
                 </div>
@@ -192,7 +192,7 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Benchmark Return</div>
-                  <div className={`text-2xl font-bold ${(stats.benchmark_return || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  <div className={`text-2xl font-bold ${(stats.benchmark_return || 0) >= 0 ? 'text-red-500' : 'text-green-500'}`}>
                     {stats.benchmark_return !== null && stats.benchmark_return !== undefined ? `${stats.benchmark_return.toFixed(2)}%` : 'N/A'}
                   </div>
                 </div>
@@ -248,11 +248,11 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
             </div>
             <div className="bg-muted/50 rounded-lg p-4">
               <div className="text-sm text-muted-foreground mb-1">Profit Days</div>
-              <div className="text-xl font-bold text-green-500">{stats.profit_days || 0}</div>
+              <div className="text-xl font-bold text-red-500">{stats.profit_days || 0}</div>
             </div>
             <div className="bg-muted/50 rounded-lg p-4">
               <div className="text-sm text-muted-foreground mb-1">Loss Days</div>
-              <div className="text-xl font-bold text-red-500">{stats.loss_days || 0}</div>
+              <div className="text-xl font-bold text-green-500">{stats.loss_days || 0}</div>
             </div>
           </div>
 
@@ -359,8 +359,8 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
                           </td>
                           <td className={`p-3 ${
                             trade.direction === '多' || trade.direction === 'LONG'
-                              ? 'text-green-500'
-                              : 'text-red-500'
+                              ? 'text-red-500'
+                              : 'text-green-500'
                           }`}>
                             {trade.direction}
                           </td>
@@ -418,8 +418,8 @@ function StatCard({
         className={`text-2xl font-bold ${
           positive !== undefined
             ? positive
-              ? 'text-green-500'
-              : 'text-red-500'
+              ? 'text-red-500'
+              : 'text-green-500'
             : ''
         }`}
       >

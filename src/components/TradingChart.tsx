@@ -47,7 +47,7 @@ function LongEntryShape(props: any) {
   if (cx == null || cy == null) return null
   return (
     <g>
-      <circle cx={cx} cy={cy} r={6} fill="#10b981" stroke="#fff" strokeWidth={1.5} />
+      <circle cx={cx} cy={cy} r={6} fill="#ef4444" stroke="#fff" strokeWidth={1.5} />
       <polygon points={`${cx},${cy - 3} ${cx - 3},${cy + 2} ${cx + 3},${cy + 2}`} fill="#fff" />
     </g>
   )
@@ -58,7 +58,7 @@ function ShortEntryShape(props: any) {
   if (cx == null || cy == null) return null
   return (
     <g>
-      <circle cx={cx} cy={cy} r={6} fill="#ef4444" stroke="#fff" strokeWidth={1.5} />
+      <circle cx={cx} cy={cy} r={6} fill="#10b981" stroke="#fff" strokeWidth={1.5} />
       <polygon points={`${cx},${cy + 3} ${cx - 3},${cy - 2} ${cx + 3},${cy - 2}`} fill="#fff" />
     </g>
   )
@@ -69,7 +69,7 @@ function LongExitShape(props: any) {
   if (cx == null || cy == null) return null
   return (
     <g>
-      <circle cx={cx} cy={cy} r={6} fill="#10b981" stroke="#fff" strokeWidth={1.5} />
+      <circle cx={cx} cy={cy} r={6} fill="#ef4444" stroke="#fff" strokeWidth={1.5} />
       <line x1={cx - 2.5} y1={cy - 2.5} x2={cx + 2.5} y2={cy + 2.5} stroke="#fff" strokeWidth={1.5} />
       <line x1={cx - 2.5} y1={cy + 2.5} x2={cx + 2.5} y2={cy - 2.5} stroke="#fff" strokeWidth={1.5} />
     </g>
@@ -81,7 +81,7 @@ function ShortExitShape(props: any) {
   if (cx == null || cy == null) return null
   return (
     <g>
-      <circle cx={cx} cy={cy} r={6} fill="#ef4444" stroke="#fff" strokeWidth={1.5} />
+      <circle cx={cx} cy={cy} r={6} fill="#10b981" stroke="#fff" strokeWidth={1.5} />
       <line x1={cx - 2.5} y1={cy - 2.5} x2={cx + 2.5} y2={cy + 2.5} stroke="#fff" strokeWidth={1.5} />
       <line x1={cx - 2.5} y1={cy + 2.5} x2={cx + 2.5} y2={cy - 2.5} stroke="#fff" strokeWidth={1.5} />
     </g>
@@ -300,25 +300,25 @@ export default function TradingChart({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+            <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
               <ArrowUp className="w-2 h-2 text-white" />
             </div>
             <span>Long Entry</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
+            <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
               <ArrowDown className="w-2 h-2 text-white" />
             </div>
             <span>Short Entry</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
+            <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
               <span className="text-white text-[8px]">✕</span>
             </div>
             <span>Long Exit</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
+            <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
               <span className="text-white text-[8px]">✕</span>
             </div>
             <span>Short Exit</span>
@@ -450,7 +450,7 @@ export default function TradingChart({
                 const yLow = yForPrice(low)
 
                 const isUp = close >= open
-                const color = isUp ? '#10b981' : '#ef4444'
+                const color = isUp ? '#ef4444' : '#10b981'
                 const bodyY = Math.min(yOpen, yClose)
                 const bodyHeight = Math.abs(yClose - yOpen) || 1
                 const wickX = x + width / 2
