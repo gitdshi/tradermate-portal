@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BarChart3, Calendar, CheckCircle, ChevronDown, ChevronUp, Clock, DollarSign, Eye, Loader, Percent, Trash2, TrendingDown, TrendingUp, XCircle } from 'lucide-react'
-import { useState } from 'react'
+import { Calendar, CheckCircle, Clock, DollarSign, Eye, Loader, Trash2, TrendingUp, XCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { queueAPI } from '../lib/api'
 
 interface BacktestJobListProps {
@@ -9,7 +9,6 @@ interface BacktestJobListProps {
 
 export default function BacktestJobList({ onViewResults }: BacktestJobListProps) {
   const [filter, setFilter] = useState<string>('all')
-  const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
   const [jobDetails, setJobDetails] = useState<Record<string, any>>({})
   const queryClient = useQueryClient()
 
@@ -34,27 +33,32 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
     }
   }
 
-  const toggleExpand = async (jobId: string) => {
-    if (expandedJobId === jobId) {
-      setExpandedJobId(null)
-    } else {
-      setExpandedJobId(jobId)
-      // Fetch job details if not already cached
-      if (!jobDetails[jobId]) {
-        try {
-          const response = await queueAPI.getJob(jobId)
-          setJobDetails(prev => ({
-            ...prev,
-            [jobId]: response.data
-          }))
-        } catch (error) {
-          console.error('Failed to fetch job details:', error)
-        }
+  const fetchJobDetails = async (jobId: string) => {
+    if (!jobDetails[jobId]) {
+      try {
+        const response = await queueAPI.getJob(jobId)
+        setJobDetails(prev => ({
+          ...prev,
+          [jobId]: response.data
+        }))
+      } catch (error) {
+        console.error('Failed to fetch job details:', error)
       }
     }
   }
 
   const jobs = jobsData?.data || []
+
+  // Auto-fetch details for completed jobs
+  useEffect(() => {
+    if (jobs && jobs.length > 0) {
+      jobs.forEach((job: any) => {
+        if ((job.status === 'finished' || job.status === 'completed') && !jobDetails[job.job_id]) {
+          fetchJobDetails(job.job_id)
+        }
+      })
+    }
+  }, [jobs])
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -187,21 +191,18 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
               ? `${job.symbol || ''} (${job.symbol_name})`
               : job.symbol || ''
             const strategyDisplay = job.strategy_name || job.strategy_class || ''
-            const isExpanded = expandedJobId === job.job_id
             const jobDetail = jobDetails[job.job_id]
             const hasStats = (job.status === 'finished' || job.status === 'completed')
             const stats = jobDetail?.result?.statistics
 
             return (
-            <div
-              key={job.job_id}
-              className="bg-card border border-border rounded-lg hover:shadow-md transition-shadow"
-            >
-              <div className="p-4">
-                <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  {/* Top row: status + timestamp */}
-                  <div className="flex items-center gap-3 mb-2">
+              <div
+                key={job.job_id}
+                className="bg-card border border-border rounded-lg hover:shadow-md transition-shadow"
+              >
+                <div className="p-4">
+                  {/* Line 1: status + timestamp + job ID (full width) */}
+                  <div className="flex items-center gap-3 mb-1.5 flex-wrap">
                     {getStatusIcon(job.status)}
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-medium capitalize ${getStatusColor(
@@ -213,48 +214,120 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                     <span className="text-xs text-muted-foreground">
                       {new Date(job.created_at).toLocaleString()}
                     </span>
+                    <span className="text-xs text-muted-foreground/60 font-mono">
+                      {job.job_id}
+                    </span>
                   </div>
 
-                  {/* Main info row: strategy + symbol */}
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    {strategyDisplay && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium">
-                        <TrendingUp className="h-3 w-3" />
-                        {strategyDisplay}
-                      </span>
-                    )}
-                    {symbolDisplay && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
-                        {symbolDisplay}
-                      </span>
-                    )}
-                  </div>
+                  {/* Lines 2-3: left info + right metrics/buttons */}
+                  <div className="flex items-center justify-between gap-4">
+                    {/* Left: line 2 strategy+symbol, line 3 parameters */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        {strategyDisplay && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium">
+                            <TrendingUp className="h-3 w-3" />
+                            {strategyDisplay}
+                          </span>
+                        )}
+                        {symbolDisplay && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium">
+                            {symbolDisplay}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                        {job.start_date && job.end_date && (
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {job.start_date} ~ {job.end_date}
+                          </span>
+                        )}
+                        {job.initial_capital && (
+                          <span className="inline-flex items-center gap-1">
+                            <DollarSign className="h-3 w-3" />
+                            {Number(job.initial_capital).toLocaleString()}
+                          </span>
+                        )}
+                        {job.rate !== undefined && (
+                          <span>Rate: {job.rate}</span>
+                        )}
+                        {job.slippage !== undefined && (
+                          <span>Slip: {job.slippage}</span>
+                        )}
+                      </div>
+                    </div>
 
-                  {/* Parameters row */}
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                    {job.start_date && job.end_date && (
-                      <span className="inline-flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {job.start_date} ~ {job.end_date}
-                      </span>
+                    {/* Right: metrics + buttons in one row, vertically centered with left lines 2-3 */}
+                    {hasStats && stats ? (
+                      <div className="flex-shrink-0 flex items-center gap-3">
+                        <div className={`text-lg font-extrabold ${
+                            (stats.total_return || 0) >= 0 ? 'text-red-500' : 'text-green-500'
+                          }`}>
+                            <span className="text-sm text-muted-foreground font-normal mr-2">Return</span>
+                            {(stats.total_return || 0).toFixed(2)}%
+                          </div>
+                          <div className="text-lg font-extrabold">
+                            <span className="text-sm text-muted-foreground font-normal mr-2">Annual</span>
+                            {(stats.annual_return || 0).toFixed(2)}%
+                          </div>
+                          <div className="text-lg font-extrabold">
+                            <span className="text-sm text-muted-foreground font-normal mr-2">Sharpe</span>
+                            {(stats.sharpe_ratio || 0).toFixed(2)}
+                          </div>
+                          <div className="text-lg font-extrabold text-green-500">
+                            <span className="text-sm text-muted-foreground font-normal mr-2">MaxDD</span>
+                            {(stats.max_drawdown_percent || stats.max_drawdown || 0).toFixed(2)}%
+                          </div>
+                        <div className="flex items-center gap-2 ml-2 border-l border-border pl-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onViewResults(job.job_id)
+                            }}
+                            className="px-3 py-2 hover:bg-primary/10 text-primary rounded-md transition-colors text-sm font-medium"
+                            title="View results"
+                          >
+                            <Eye className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDelete(job.job_id, e)}
+                            disabled={deleteMutation.isPending}
+                            className="px-3 py-2 hover:bg-destructive/10 text-destructive rounded-md transition-colors disabled:opacity-50 text-sm font-medium"
+                            title="Delete job"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : hasStats ? (
+                      <div className="flex-shrink-0 flex items-center px-4">
+                        <Loader className="h-5 w-5 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <div className="flex-shrink-0 flex items-center gap-1">
+                        {(job.status === 'finished' || job.status === 'completed') && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onViewResults(job.job_id)
+                            }}
+                            className="px-3 py-2 hover:bg-primary/10 text-primary rounded-md transition-colors text-sm font-medium"
+                            title="View results"
+                          >
+                            <Eye className="h-5 w-5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => handleDelete(job.job_id, e)}
+                          disabled={deleteMutation.isPending}
+                          className="px-3 py-2 hover:bg-destructive/10 text-destructive rounded-md transition-colors disabled:opacity-50 text-sm font-medium"
+                          title="Delete job"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </div>
                     )}
-                    {job.initial_capital && (
-                      <span className="inline-flex items-center gap-1">
-                        <DollarSign className="h-3 w-3" />
-                        {Number(job.initial_capital).toLocaleString()}
-                      </span>
-                    )}
-                    {job.rate !== undefined && (
-                      <span>Rate: {job.rate}</span>
-                    )}
-                    {job.slippage !== undefined && (
-                      <span>Slip: {job.slippage}</span>
-                    )}
-                  </div>
-
-                  {/* Job ID */}
-                  <div className="text-xs text-muted-foreground/60 mt-1">
-                    <span className="font-mono">{job.job_id}</span>
                   </div>
 
                   {job.progress !== undefined && job.progress > 0 && (
@@ -278,91 +351,9 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                     </div>
                   )}
                 </div>
-
-                <div className="flex items-center gap-2 ml-4">
-                  {hasStats && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleExpand(job.job_id)
-                      }}
-                      className="p-2 hover:bg-muted rounded-md transition-colors"
-                      title={isExpanded ? "Hide metrics" : "Show metrics"}
-                    >
-                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
-                  )}
-                  {(job.status === 'finished' || job.status === 'completed') && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onViewResults(job.job_id)
-                      }}
-                      className="p-2 hover:bg-primary/10 text-primary rounded-md transition-colors"
-                      title="View results"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={(e) => handleDelete(job.job_id, e)}
-                    disabled={deleteMutation.isPending}
-                    className="p-2 hover:bg-destructive/10 text-destructive rounded-md transition-colors disabled:opacity-50"
-                    title="Delete job"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
-              </div>
-
-              {/* Quick Metrics View */}
-              {isExpanded && stats && (
-                <div className="px-4 pb-4 border-t border-border/50 pt-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-muted/30 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Total Return</span>
-                      </div>
-                      <div className={`text-lg font-bold ${
-                        (stats.total_return || 0) >= 0 ? 'text-red-500' : 'text-green-500'
-                      }`}>
-                        {(stats.total_return || 0).toFixed(2)}%
-                      </div>
-                    </div>
-                    <div className="bg-muted/30 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Percent className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Annual Return</span>
-                      </div>
-                      <div className="text-lg font-bold">
-                        {(stats.annual_return || 0).toFixed(2)}%
-                      </div>
-                    </div>
-                    <div className="bg-muted/30 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Sharpe Ratio</span>
-                      </div>
-                      <div className="text-lg font-bold">
-                        {(stats.sharpe_ratio || 0).toFixed(2)}
-                      </div>
-                    </div>
-                    <div className="bg-muted/30 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <TrendingDown className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">Max Drawdown</span>
-                      </div>
-                      <div className="text-lg font-bold text-green-500">
-                        {(stats.max_drawdown_percent || stats.max_drawdown || 0).toFixed(2)}%
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )})}
+            )
+          })}
         </div>
       )}
     </div>
