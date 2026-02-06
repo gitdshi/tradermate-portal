@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Calendar, CheckCircle, Clock, DollarSign, Eye, Loader, Trash2, TrendingUp, XCircle } from 'lucide-react'
+import { Calendar, CheckCircle, Clock, DollarSign, Eye, Loader, Trash2, TrendingUp, XCircle, ChevronDown, ChevronUp, BarChart3, Percent, TrendingDown } from 'lucide-react'
 import { useState } from 'react'
 import { queueAPI } from '../lib/api'
 
@@ -9,6 +9,7 @@ interface BacktestJobListProps {
 
 export default function BacktestJobList({ onViewResults }: BacktestJobListProps) {
   const [filter, setFilter] = useState<string>('all')
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: jobsData, isLoading } = useQuery({
@@ -30,6 +31,10 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
     if (confirm('Are you sure you want to delete this backtest job?')) {
       deleteMutation.mutate(jobId)
     }
+  }
+
+  const toggleExpand = (jobId: string) => {
+    setExpandedJobId(expandedJobId === jobId ? null : jobId)
   }
 
   const jobs = jobsData?.data || []
@@ -151,18 +156,30 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
             initial_capital?: number
             rate?: number
             slippage?: number
+            result?: {
+              statistics?: {
+                total_return?: number
+                annual_return?: number
+                sharpe_ratio?: number
+                max_drawdown?: number
+                max_drawdown_percent?: number
+              }
+            }
           }) => {
             const symbolDisplay = job.symbol_name 
               ? `${job.symbol || ''} (${job.symbol_name})`
               : job.symbol || ''
             const strategyDisplay = job.strategy_name || job.strategy_class || ''
+            const isExpanded = expandedJobId === job.job_id
+            const hasStats = job.result?.statistics && (job.status === 'finished' || job.status === 'completed')
 
             return (
             <div
               key={job.job_id}
-              className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow"
+              className="bg-card border border-border rounded-lg hover:shadow-md transition-shadow"
             >
-              <div className="flex items-start justify-between">
+              <div className="p-4">
+                <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   {/* Top row: status + timestamp */}
                   <div className="flex items-center gap-3 mb-2">
@@ -244,9 +261,24 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                 </div>
 
                 <div className="flex items-center gap-2 ml-4">
+                  {hasStats && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleExpand(job.job_id)
+                      }}
+                      className="p-2 hover:bg-muted rounded-md transition-colors"
+                      title={isExpanded ? "Hide metrics" : "Show metrics"}
+                    >
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                  )}
                   {(job.status === 'finished' || job.status === 'completed') && (
                     <button
-                      onClick={() => onViewResults(job.job_id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onViewResults(job.job_id)
+                      }}
                       className="p-2 hover:bg-primary/10 text-primary rounded-md transition-colors"
                       title="View results"
                     >
@@ -263,6 +295,53 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                   </button>
                 </div>
               </div>
+              </div>
+
+              {/* Quick Metrics View */}
+              {isExpanded && hasStats && job.result?.statistics && (
+                <div className="px-4 pb-4 border-t border-border/50 pt-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-muted/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Total Return</span>
+                      </div>
+                      <div className={`text-lg font-bold ${
+                        (job.result.statistics.total_return || 0) >= 0 ? 'text-red-500' : 'text-green-500'
+                      }`}>
+                        {(job.result.statistics.total_return || 0).toFixed(2)}%
+                      </div>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Percent className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Annual Return</span>
+                      </div>
+                      <div className="text-lg font-bold">
+                        {(job.result.statistics.annual_return || 0).toFixed(2)}%
+                      </div>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Sharpe Ratio</span>
+                      </div>
+                      <div className="text-lg font-bold">
+                        {(job.result.statistics.sharpe_ratio || 0).toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="bg-muted/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">Max Drawdown</span>
+                      </div>
+                      <div className="text-lg font-bold text-green-500">
+                        {(job.result.statistics.max_drawdown_percent || job.result.statistics.max_drawdown || 0).toFixed(2)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )})}
         </div>
