@@ -2,7 +2,6 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import {
     Bar,
-    Brush,
     CartesianGrid,
     ComposedChart,
     Legend,
@@ -143,8 +142,9 @@ export default function TradingChart({
   stockSymbol = 'Stock',
   benchmarkSymbol = 'Benchmark',
 }: TradingChartProps) {
-  const [brushStartIndex, setBrushStartIndex] = useState<number | undefined>(undefined)
-  const [brushEndIndex, setBrushEndIndex] = useState<number | undefined>(undefined)
+  const [zoomState, setZoomState] = useState({ startIndex: 0, endIndex: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState(0)
   
   const { chartData, tradeMarkers } = useMemo(() => {
     if (!stockPriceData || stockPriceData.length === 0) {
@@ -254,9 +254,71 @@ export default function TradingChart({
   const benchPadding = (benchMax - benchMin) * 0.1 || 1
 
   const handleResetZoom = () => {
-    setBrushStartIndex(undefined)
-    setBrushEndIndex(undefined)
+    setZoomState({ startIndex: 0, endIndex: chartData.length - 1 })
   }
+
+  // Initialize zoom to show all data
+  if (zoomState.endIndex === 0 && chartData.length > 0) {
+    setZoomState({ startIndex: 0, endIndex: chartData.length - 1 })
+  }
+
+  // Handle mouse wheel zoom
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? 1 : -1
+    const zoomFactor = 0.1
+    const currentRange = zoomState.endIndex - zoomState.startIndex
+    const zoomAmount = Math.max(1, Math.floor(currentRange * zoomFactor))
+    
+    if (delta > 0) {
+      // Zoom out
+      const newStart = Math.max(0, zoomState.startIndex - zoomAmount)
+      const newEnd = Math.min(chartData.length - 1, zoomState.endIndex + zoomAmount)
+      setZoomState({ startIndex: newStart, endIndex: newEnd })
+    } else {
+      // Zoom in
+      const newStart = Math.min(zoomState.startIndex + zoomAmount, zoomState.endIndex - 10)
+      const newEnd = Math.max(zoomState.endIndex - zoomAmount, zoomState.startIndex + 10)
+      if (newEnd > newStart + 5) {
+        setZoomState({ startIndex: newStart, endIndex: newEnd })
+      }
+    }
+  }
+
+  // Handle mouse drag to pan
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true)
+    setDragStart(e.clientX)
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return
+    
+    const diff = dragStart - e.clientX
+    const pixelsPerPoint = 800 / (zoomState.endIndex - zoomState.startIndex)
+    const pointsToMove = Math.round(diff / pixelsPerPoint)
+    
+    if (Math.abs(pointsToMove) > 0) {
+      const newStart = zoomState.startIndex + pointsToMove
+      const newEnd = zoomState.endIndex + pointsToMove
+      
+      if (newStart >= 0 && newEnd < chartData.length) {
+        setZoomState({ startIndex: newStart, endIndex: newEnd })
+        setDragStart(e.clientX)
+      }
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  const handleMouseLeave = () => {
+    setIsDragging(false)
+  }
+
+  // Get visible data based on zoom state
+  const visibleData = chartData.slice(zoomState.startIndex, zoomState.endIndex + 1)
 
   return (
     <div className="w-full">
@@ -288,20 +350,25 @@ export default function TradingChart({
             <span>Short Exit</span>
           </div>
         </div>
-        {(brushStartIndex !== undefined || brushEndIndex !== undefined) && (
-          <button
-            onClick={handleResetZoom}
-            className="px-3 py-1 text-xs border border-input rounded-md hover:bg-muted transition-colors"
-          >
-            Reset Zoom
-          </button>
-        )}
+        <button
+          onClick={handleResetZoom}
+          className="px-3 py-1 text-xs border border-input rounded-md hover:bg-muted transition-colors"
+        >
+          Reset Zoom
+        </button>
       </div>
 
-      <div className="h-80">
+      <div 
+        className="h-80 cursor-move"
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
-            data={chartData}
+            data={visibleData}
             margin={{ top: 10, right: 60, left: 10, bottom: 10 }}
           >
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -387,7 +454,7 @@ export default function TradingChart({
               yAxisId="left"
               dataKey="close"
               name={stockSymbol}
-              shape={(props: any) => <Candlestick {...props} yAxis={props.yAxis} />}
+              shape={<Candlestick />}
               isAnimationActive={false}
             />
             {/* Benchmark price line (right axis) */}
@@ -404,39 +471,29 @@ export default function TradingChart({
               />
             )}
             {/* Trade markers on stock price axis */}
-            {tradeMarkers.map((trade, idx) => {
-              const ShapeComponent = trade.isEntry
-                ? (trade.isLong ? LongEntryShape : ShortEntryShape)
-                : (trade.isLong ? LongExitShape : ShortExitShape)
+            {tradeMarkers
+              .filter(trade => {
+                const dateIndex = chartData.findIndex(d => d.date === trade.date)
+                return dateIndex >= zoomState.startIndex && dateIndex <= zoomState.endIndex
+              })
+              .map((trade, idx) => {
+                const ShapeComponent = trade.isEntry
+                  ? (trade.isLong ? LongEntryShape : ShortEntryShape)
+                  : (trade.isLong ? LongExitShape : ShortExitShape)
 
-              return (
-                <ReferenceDot
-                  key={`trade-${idx}`}
-                  yAxisId="left"
-                  x={trade.date}
-                  y={trade.price}
-                  r={6}
-                  fill="transparent"
-                  stroke="transparent"
-                  shape={<ShapeComponent />}
-                />
-              )
-            })}
-            {/* Brush for zoom functionality */}
-            <Brush
-              dataKey="date"
-              height={30}
-              stroke="hsl(var(--primary))"
-              fill="hsl(var(--muted))"
-              startIndex={brushStartIndex}
-              endIndex={brushEndIndex}
-              onChange={(e: any) => {
-                if (e && e.startIndex !== undefined && e.endIndex !== undefined) {
-                  setBrushStartIndex(e.startIndex)
-                  setBrushEndIndex(e.endIndex)
-                }
-              }}
-            />
+                return (
+                  <ReferenceDot
+                    key={`trade-${idx}`}
+                    yAxisId="left"
+                    x={trade.date}
+                    y={trade.price}
+                    r={6}
+                    fill="transparent"
+                    stroke="transparent"
+                    shape={<ShapeComponent />}
+                  />
+                )
+              })}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
