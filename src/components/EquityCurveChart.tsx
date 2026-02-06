@@ -229,6 +229,7 @@ export default function EquityCurveChart({
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, strokeWidth: 2 }}
+              connectNulls={true}
             />
           )}
           {hasAnnualTrend && (
