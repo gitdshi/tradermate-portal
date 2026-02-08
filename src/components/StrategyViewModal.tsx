@@ -14,6 +14,9 @@ export default function StrategyViewModal({ strategy, onClose, onEdit }: Strateg
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold">{strategy.name}</h2>
+            <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-medium">
+              v{strategy.version}
+            </span>
             <span
               className={`px-2 py-1 rounded text-xs font-medium ${
                 strategy.is_active

@@ -54,6 +54,7 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
   const symbolName = jobData?.symbol_name || result?.symbol_name || ''
   const symbolCode = jobData?.symbol || result?.symbol || ''
   const strategyName = jobData?.strategy_name || result?.strategy_name || ''
+  const strategyVersion = jobData?.strategy_version
   const benchmark = jobData?.benchmark || result?.benchmark || stats.benchmark_symbol || '399300.SZ'
   const symbolDisplay = symbolName
     ? `${symbolCode} (${symbolName})`
@@ -101,7 +102,7 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
           <div>
             <h2 className="text-xl font-semibold">Backtest Results</h2>
             <p className="text-sm text-muted-foreground mt-1 font-medium">
-              {strategyName ? `${strategyName} • ${symbolDisplay} • ${result.start_date} to ${result.end_date} • ${getBenchmarkLabel(benchmark)}` : `${symbolDisplay} • ${result.start_date} to ${result.end_date} • ${getBenchmarkLabel(benchmark)}`}
+              {strategyName ? `${strategyName}${strategyVersion ? ` v${strategyVersion}` : ''} • ${symbolDisplay} • ${result.start_date} to ${result.end_date} • ${getBenchmarkLabel(benchmark)}` : `${symbolDisplay} • ${result.start_date} to ${result.end_date} • ${getBenchmarkLabel(benchmark)}`}
             </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-muted rounded-md transition-colors">

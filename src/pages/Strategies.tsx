@@ -534,7 +534,12 @@ class MyStrategy(CtaTemplate):
                           >
                             <div className="flex items-center justify-between">
                               <div>
-                                <h3 className="font-medium text-gray-900">{strategy.name}</h3>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-medium text-gray-900">{strategy.name}</h3>
+                                  <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 text-xs font-medium">
+                                    v{strategy.version}
+                                  </span>
+                                </div>
                                 <p className="text-sm text-gray-500">
                                   {strategy.class_name}
                                 </p>
@@ -624,7 +629,12 @@ class MyStrategy(CtaTemplate):
               {selectedDbStrategy && selectedDbStrategy.id ? (
                 <div className="flex flex-col h-full" key={`strategy-${selectedDbStrategy.id}`}>
                   <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
-                    <h2 className="text-lg font-semibold">{selectedDbStrategy.name}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold">{selectedDbStrategy.name}</h2>
+                      <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 text-xs font-medium">
+                        v{selectedDbStrategy.version}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2">
                       {!isEditing ? (
                         <>

@@ -172,6 +172,7 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
             symbol_name?: string
             strategy_class?: string
             strategy_name?: string
+            strategy_version?: number
             start_date?: string
             end_date?: string
             initial_capital?: number
@@ -191,6 +192,7 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
               ? `${job.symbol || ''} (${job.symbol_name})`
               : job.symbol || ''
             const strategyDisplay = job.strategy_name || job.strategy_class || ''
+            const strategyVersion = job.strategy_version
             const jobDetail = jobDetails[job.job_id]
             const hasStats = (job.status === 'finished' || job.status === 'completed')
             const stats = jobDetail?.result?.statistics
@@ -228,6 +230,11 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium">
                             <TrendingUp className="h-3 w-3" />
                             {strategyDisplay}
+                            {strategyVersion && (
+                              <span className="ml-1 px-1 py-0 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-semibold">
+                                v{strategyVersion}
+                              </span>
+                            )}
                           </span>
                         )}
                         {symbolDisplay && (

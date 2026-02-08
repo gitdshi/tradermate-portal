@@ -115,7 +115,7 @@ export default function StrategyForm({ strategy, onClose }: StrategyFormProps) {
       <div className={dialogClass}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-semibold">
-            {isEdit ? 'Edit Strategy' : 'Create New Strategy'}
+            {isEdit ? `Edit Strategy${strategy?.version ? ` (v${strategy.version})` : ''}` : 'Create New Strategy'}
           </h2>
           <div className="flex items-center gap-2">
             <button

@@ -169,7 +169,7 @@ export default function StrategyOptimization() {
                     <option value="">Select Strategy</option>
                     {strategies.map((strategy) => (
                       <option key={strategy.id} value={strategy.id}>
-                        {strategy.name}
+                        {strategy.name} v{strategy.version}
                       </option>
                     ))}
                   </select>

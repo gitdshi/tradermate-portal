@@ -255,9 +255,9 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
               <option value="">
                 {isLoadingStrategies ? 'Loading strategies...' : isErrorStrategies ? 'Error loading strategies' : strategies.length === 0 ? 'No strategies available' : 'Select a strategy'}
               </option>
-              {strategies.map((strategy: { id: number; name: string; class_name: string; is_active: boolean }) => (
+              {strategies.map((strategy: { id: number; name: string; class_name: string; is_active: boolean; version?: number }) => (
                 <option key={strategy.id} value={strategy.id}>
-                  {strategy.name} ({strategy.class_name}) {!strategy.is_active && '(Inactive)'}
+                  {strategy.name} v{strategy.version || 1} ({strategy.class_name}) {!strategy.is_active && '(Inactive)'}
                 </option>
               ))}
             </select>

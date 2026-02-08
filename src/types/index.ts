@@ -12,6 +12,7 @@ export interface Strategy {
   description?: string
   code: string
   user_id: number
+  version: number
   is_active: boolean
   parameters?: Record<string, unknown>
   created_at: string
@@ -71,6 +72,7 @@ export interface Job {
   result?: unknown
   symbol_name?: string
   strategy_name?: string
+  strategy_version?: number
 }
 
 export interface QueueStats {
