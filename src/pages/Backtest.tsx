@@ -48,22 +48,20 @@ export default function Backtest() {
         </div>
       </div>
 
-      {bulkSummaryJobId ? (
-        <div className="mb-4">
-          <BulkBacktestSummary
-            jobId={bulkSummaryJobId}
-            onBack={() => setBulkSummaryJobId(null)}
-            onViewChildResult={handleViewResults}
-          />
-        </div>
-      ) : (
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold mb-3">Backtest Jobs</h2>
-          <BacktestJobList
-            onViewResults={handleViewResults}
-            onViewBulkSummary={handleViewBulkSummary}
-          />
-        </div>
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold mb-3">Backtest Jobs</h2>
+        <BacktestJobList
+          onViewResults={handleViewResults}
+          onViewBulkSummary={handleViewBulkSummary}
+        />
+      </div>
+
+      {bulkSummaryJobId && (
+        <BulkBacktestSummary
+          jobId={bulkSummaryJobId}
+          onClose={() => setBulkSummaryJobId(null)}
+          onViewChildResult={handleViewResults}
+        />
       )}
 
       {showForm && (

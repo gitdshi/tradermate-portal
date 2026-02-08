@@ -1,15 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, BarChart3, Loader, TrendingDown, Trophy, XCircle } from 'lucide-react'
+import { BarChart3, Loader, TrendingDown, Trophy, X, XCircle } from 'lucide-react'
+import { useEffect } from 'react'
 import { queueAPI } from '../lib/api'
-import type { BulkBacktestSummary as BulkSummaryType, BulkSummarySymbol } from '../types'
+import type { BulkSummarySymbol, BulkBacktestSummary as BulkSummaryType } from '../types'
 
 interface BulkBacktestSummaryProps {
   jobId: string
-  onBack: () => void
+  onClose: () => void
   onViewChildResult?: (jobId: string) => void
 }
 
-export default function BulkBacktestSummary({ jobId, onBack, onViewChildResult }: BulkBacktestSummaryProps) {
+export default function BulkBacktestSummary({ jobId, onClose, onViewChildResult }: BulkBacktestSummaryProps) {
   const { data, isLoading, error } = useQuery<BulkSummaryType>({
     queryKey: ['bulk-summary', jobId],
     queryFn: async () => {
@@ -18,44 +19,60 @@ export default function BulkBacktestSummary({ jobId, onBack, onViewChildResult }
     },
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  // Close on Escape key
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [onClose])
 
-  if (error || !data) {
-    return (
-      <div className="text-center py-12 text-destructive">
-        Failed to load summary. <button onClick={onBack} className="text-primary underline ml-2">Go back</button>
-      </div>
-    )
-  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
+      {/* Modal */}
+      <div className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto bg-background border border-border rounded-lg shadow-2xl mt-[5vh] mx-4">
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 bg-background border-b border-border px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Bulk Backtest Summary
+            </h2>
+            <p className="text-xs text-muted-foreground font-mono">{jobId}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-muted rounded-md transition-colors"
+            title="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : error || !data ? (
+          <div className="text-center py-12 text-destructive">
+            Failed to load summary. <button onClick={onClose} className="text-primary underline ml-2">Close</button>
+          </div>
+        ) : (
+          <SummaryContent data={data} jobId={jobId} onViewChildResult={onViewChildResult} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SummaryContent({ data, jobId, onViewChildResult }: { data: BulkSummaryType; jobId: string; onViewChildResult?: (jobId: string) => void }) {
   const fmt = (v: number | null | undefined, suffix = '%') =>
     v !== null && v !== undefined ? `${v.toFixed(2)}${suffix}` : '-'
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-muted rounded-md transition-colors"
-          title="Back to job list"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
-        <div>
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            Bulk Backtest Summary
-          </h2>
-          <p className="text-xs text-muted-foreground font-mono">{jobId}</p>
-        </div>
-      </div>
+    <div className="p-6 space-y-6">
 
       {/* Overview cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">

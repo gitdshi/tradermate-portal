@@ -561,15 +561,6 @@ function BulkJobCard({
             )}
 
             <div className="flex items-center gap-1 border-l border-border pl-3">
-              {hasFinished && onViewBulkSummary && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onViewBulkSummary(job.job_id) }}
-                  className="px-3 py-2 hover:bg-primary/10 text-primary rounded-md transition-colors text-sm font-medium"
-                  title="View summary"
-                >
-                  <BarChart3 className="h-5 w-5" />
-                </button>
-              )}
               {hasFinished && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggle() }}
@@ -577,6 +568,15 @@ function BulkJobCard({
                   title={expanded ? 'Collapse results' : 'Expand results'}
                 >
                   {expanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                </button>
+              )}
+              {hasFinished && onViewBulkSummary && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onViewBulkSummary(job.job_id) }}
+                  className="px-3 py-2 hover:bg-primary/10 text-primary rounded-md transition-colors text-sm font-medium"
+                  title="View summary"
+                >
+                  <BarChart3 className="h-5 w-5" />
                 </button>
               )}
               <button
