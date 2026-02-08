@@ -536,7 +536,12 @@ function BulkJobCard({
                     {bestReturn.toFixed(2)}%
                   </div>
                   {bestSymbol && (
-                    <div className="text-[10px] text-muted-foreground text-right">{bestSymbol}</div>
+                    <div className="text-[10px] text-muted-foreground text-right">
+                      {bestSymbol}
+                      {job.result?.best_symbol_name ? (
+                        <span className="text-[10px] text-muted-foreground/80 ml-1">({job.result.best_symbol_name})</span>
+                      ) : null}
+                    </div>
                   )}
                 </div>
                 {job.result?.best_annual_return !== undefined && (
