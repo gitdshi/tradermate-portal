@@ -140,6 +140,9 @@ export const queueAPI = {
 
   getBulkJobResults: (jobId: string, page = 1, pageSize = 10, sortOrder: 'asc' | 'desc' = 'desc') =>
     api.get(`/api/queue/bulk-jobs/${jobId}/results`, { params: { page, page_size: pageSize, sort_order: sortOrder } }),
+
+  getBulkJobSummary: (jobId: string) =>
+    api.get(`/api/queue/bulk-jobs/${jobId}/summary`),
 }
 
 // Market Data API

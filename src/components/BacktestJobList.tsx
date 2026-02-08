@@ -1,14 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Calendar, CheckCircle, ChevronDown, ChevronRight, Clock, DollarSign, Eye, Layers, Loader, Trash2, TrendingUp, XCircle } from 'lucide-react'
+import { ArrowDown, ArrowUp, BarChart3, Calendar, CheckCircle, ChevronDown, ChevronRight, Clock, DollarSign, Eye, Layers, Loader, Trash2, TrendingUp, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { queueAPI } from '../lib/api'
 import type { BulkJobChildResult, BulkJobResultsPage } from '../types'
 
 interface BacktestJobListProps {
   onViewResults: (jobId: string) => void
+  onViewBulkSummary?: (jobId: string) => void
 }
 
-export default function BacktestJobList({ onViewResults }: BacktestJobListProps) {
+export default function BacktestJobList({ onViewResults, onViewBulkSummary }: BacktestJobListProps) {
   const [filter, setFilter] = useState<string>('all')
   const [jobDetails, setJobDetails] = useState<Record<string, any>>({})
   const [expandedBulk, setExpandedBulk] = useState<Record<string, boolean>>({})
@@ -207,6 +208,7 @@ export default function BacktestJobList({ onViewResults }: BacktestJobListProps)
                   onDelete={(e) => handleDelete(job.job_id, e)}
                   deleteIsPending={deleteMutation.isPending}
                   onViewResults={onViewResults}
+                  onViewBulkSummary={onViewBulkSummary}
                   getStatusIcon={getStatusIcon}
                   getStatusColor={getStatusColor}
                 />
@@ -403,6 +405,7 @@ function BulkJobCard({
   onDelete,
   deleteIsPending,
   onViewResults,
+  onViewBulkSummary,
   getStatusIcon,
   getStatusColor,
 }: {
@@ -412,6 +415,7 @@ function BulkJobCard({
   onDelete: (e: React.MouseEvent) => void
   deleteIsPending: boolean
   onViewResults: (jobId: string) => void
+  onViewBulkSummary?: (jobId: string) => void
   getStatusIcon: (s: string) => React.ReactNode
   getStatusColor: (s: string) => string
 }) {
@@ -522,21 +526,50 @@ function BulkJobCard({
             </div>
           </div>
 
-          {/* Right: best return + expand/delete */}
+          {/* Right: best return metrics + buttons */}
           <div className="flex-shrink-0 flex items-center gap-3">
             {hasFinished && bestReturn !== undefined && bestReturn !== null && (
-              <div>
-                <div className={`text-lg font-extrabold ${bestReturn >= 0 ? 'text-red-500' : 'text-green-500'}`}>
-                  <span className="text-sm text-muted-foreground font-normal mr-1">Best</span>
-                  {bestReturn.toFixed(2)}%
+              <div className="flex items-center gap-3">
+                <div>
+                  <div className={`text-lg font-extrabold ${bestReturn >= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                    <span className="text-sm text-muted-foreground font-normal mr-1">Return</span>
+                    {bestReturn.toFixed(2)}%
+                  </div>
+                  {bestSymbol && (
+                    <div className="text-[10px] text-muted-foreground text-right">{bestSymbol}</div>
+                  )}
                 </div>
-                {bestSymbol && (
-                  <div className="text-[10px] text-muted-foreground text-right">{bestSymbol}</div>
+                {job.result?.best_annual_return !== undefined && (
+                  <div className="text-lg font-extrabold">
+                    <span className="text-sm text-muted-foreground font-normal mr-1">Annual</span>
+                    {job.result.best_annual_return.toFixed(2)}%
+                  </div>
+                )}
+                {job.result?.best_sharpe_ratio !== undefined && (
+                  <div className="text-lg font-extrabold">
+                    <span className="text-sm text-muted-foreground font-normal mr-1">Sharpe</span>
+                    {job.result.best_sharpe_ratio.toFixed(2)}
+                  </div>
+                )}
+                {job.result?.best_max_drawdown !== undefined && (
+                  <div className="text-lg font-extrabold text-green-500">
+                    <span className="text-sm text-muted-foreground font-normal mr-1">MaxDD</span>
+                    {job.result.best_max_drawdown.toFixed(2)}%
+                  </div>
                 )}
               </div>
             )}
 
             <div className="flex items-center gap-1 border-l border-border pl-3">
+              {hasFinished && onViewBulkSummary && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onViewBulkSummary(job.job_id) }}
+                  className="px-3 py-2 hover:bg-primary/10 text-primary rounded-md transition-colors text-sm font-medium"
+                  title="View summary"
+                >
+                  <BarChart3 className="h-5 w-5" />
+                </button>
+              )}
               {hasFinished && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggle() }}

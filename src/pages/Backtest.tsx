@@ -4,15 +4,21 @@ import BacktestForm from '../components/BacktestForm'
 import BacktestJobList from '../components/BacktestJobList'
 import BacktestResults from '../components/BacktestResults'
 import BulkBacktestForm from '../components/BulkBacktestForm'
+import BulkBacktestSummary from '../components/BulkBacktestSummary'
 import ErrorBoundary from '../components/ErrorBoundary'
 
 export default function Backtest() {
   const [showForm, setShowForm] = useState(false)
   const [showBulkForm, setShowBulkForm] = useState(false)
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+  const [bulkSummaryJobId, setBulkSummaryJobId] = useState<string | null>(null)
 
   const handleViewResults = (jobId: string) => {
     setSelectedJobId(jobId)
+  }
+
+  const handleViewBulkSummary = (jobId: string) => {
+    setBulkSummaryJobId(jobId)
   }
 
   return (
@@ -42,10 +48,23 @@ export default function Backtest() {
         </div>
       </div>
 
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold mb-3">Backtest Jobs</h2>
-        <BacktestJobList onViewResults={handleViewResults} />
-      </div>
+      {bulkSummaryJobId ? (
+        <div className="mb-4">
+          <BulkBacktestSummary
+            jobId={bulkSummaryJobId}
+            onBack={() => setBulkSummaryJobId(null)}
+            onViewChildResult={handleViewResults}
+          />
+        </div>
+      ) : (
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold mb-3">Backtest Jobs</h2>
+          <BacktestJobList
+            onViewResults={handleViewResults}
+            onViewBulkSummary={handleViewBulkSummary}
+          />
+        </div>
+      )}
 
       {showForm && (
         <ErrorBoundary>

@@ -119,6 +119,41 @@ export interface BulkJobResultsPage {
   sort_order: 'asc' | 'desc'
 }
 
+export interface BulkBacktestSummary {
+  job_id: string
+  total_symbols: number
+  completed_count: number
+  failed_count: number
+  winning_count: number
+  losing_count: number
+  win_rate: number
+  avg_metrics: {
+    total_return: number | null
+    annual_return: number | null
+    sharpe_ratio: number | null
+    max_drawdown: number | null
+    winning_rate: number | null
+    profit_factor: number | null
+    total_trades: number | null
+  }
+  top10: BulkSummarySymbol[]
+  bottom10: BulkSummarySymbol[]
+  return_distribution: Record<string, number>
+  failed_symbols: { symbol: string; error: string }[]
+}
+
+export interface BulkSummarySymbol {
+  symbol: string
+  symbol_name?: string
+  total_return: number | null
+  annual_return: number | null
+  sharpe_ratio: number | null
+  max_drawdown: number | null
+  total_trades: number | null
+  winning_rate: number | null
+  profit_factor: number | null
+}
+
 export interface QueueStats {
   queues: Record<string, {
     queued: number
