@@ -2,8 +2,6 @@ import { diffLines } from 'diff'
 import {
     Edit2,
     GitCompare,
-    Maximize2,
-    Minimize2,
     Plus,
     RefreshCw,
     Save,
@@ -41,6 +39,7 @@ export default function Strategies() {
   const [editName, setEditName] = useState('')
   const [editClassName, setEditClassName] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editParameters, setEditParameters] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [showDbForm, setShowDbForm] = useState(false)
   const [newStrategyName, setNewStrategyName] = useState('')
@@ -625,7 +624,7 @@ class MyStrategy(CtaTemplate):
             </div>
 
             {/* Details Panel */}
-            <div className={`bg-white rounded-lg shadow lg:col-span-8 overflow-hidden flex flex-col ${editorFullScreen ? 'lg:col-span-12 h-screen' : ''}`}>
+            <div className={`bg-white rounded-lg shadow lg:col-span-8 overflow-hidden flex flex-col ${editorFullScreen ? 'fixed inset-0 z-50 rounded-none' : ''}`}>
               {selectedDbStrategy && selectedDbStrategy.id ? (
                 <div className="flex flex-col h-full" key={`strategy-${selectedDbStrategy.id}`}>
                   <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
@@ -645,6 +644,7 @@ class MyStrategy(CtaTemplate):
                               setEditName(selectedDbStrategy.name)
                               setEditClassName(selectedDbStrategy.class_name)
                               setEditDescription(selectedDbStrategy.description || '')
+                              setEditParameters(selectedDbStrategy.parameters ? JSON.stringify(selectedDbStrategy.parameters, null, 2) : '{}')
                               setEditorFullScreen(true)
                             }}
                             className="px-3 py-2 bg-blue-600 text-white rounded flex items-center gap-2 hover:bg-blue-700"
@@ -671,6 +671,18 @@ class MyStrategy(CtaTemplate):
                                   updatePayload.description = editDescription.trim()
                                 }
                                 
+                                // Send parameters if changed
+                                try {
+                                  const newParams = editParameters.trim() ? JSON.parse(editParameters) : {}
+                                  const oldParams = selectedDbStrategy.parameters || {}
+                                  if (JSON.stringify(newParams) !== JSON.stringify(oldParams)) {
+                                    updatePayload.parameters = newParams
+                                  }
+                                } catch {
+                                  setError('Parameters must be valid JSON')
+                                  return
+                                }
+
                                 // Always send code if it has content OR if it explicitly changed
                                 const normalizedExisting = selectedDbStrategy.code || ''
                                 const normalizedEdit = editContent || ''
@@ -728,18 +740,12 @@ class MyStrategy(CtaTemplate):
                               setEditName('')
                               setEditClassName('')
                               setEditDescription('')
+                              setEditParameters('')
                               setEditorFullScreen(false)
                             }}
                             className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
                           >
                             Cancel
-                          </button>
-                          <button
-                            onClick={() => setEditorFullScreen(!editorFullScreen)}
-                            className="px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                            title={editorFullScreen ? 'Exit full window' : 'Full window'}
-                          >
-                            {editorFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                           </button>
                         </div>
                       )}
@@ -808,6 +814,8 @@ class MyStrategy(CtaTemplate):
                                 setEditName(selectedDbStrategy.name)
                                 setEditClassName(selectedDbStrategy.class_name)
                                 setEditDescription(selectedDbStrategy.description || '')
+                                setEditParameters(selectedDbStrategy.parameters ? JSON.stringify(selectedDbStrategy.parameters, null, 2) : '{}')
+                                setEditorFullScreen(true)
                               }}
                               className="mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
                             >
@@ -829,57 +837,25 @@ class MyStrategy(CtaTemplate):
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-4 p-4 overflow-y-auto flex-1">
-                      {/* Edit basic information */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4 border-b flex-shrink-0">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Strategy Name</label>
-                          <input
-                            type="text"
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
+                    <div className="flex flex-1 overflow-hidden absolute inset-0 top-[57px]">
+                      {/* Left: Code Editor */}
+                      <div className="flex-1 flex flex-col border-r border-gray-300 overflow-hidden">
+                        <div className="px-4 py-2 border-b border-gray-200 flex-shrink-0">
+                          <label className="text-sm font-medium text-gray-700">Code</label>
                         </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Class Name</label>
-                          <input
-                            type="text"
-                            value={editClassName}
-                            onChange={(e) => setEditClassName(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="e.g., MyStrategy"
-                          />
-                        </div>
-                        
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                          <input
-                            type="text"
-                            value={editDescription}
-                            onChange={(e) => setEditDescription(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* Edit code */}
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
-                        <div className="border border-gray-300 rounded overflow-auto" style={{maxHeight: editorFullScreen ? 'calc(100vh - 350px)' : '500px'}}>
-                          <div className="relative" style={{minHeight: '400px'}}>
+                        <div className="flex-1 relative overflow-auto">
+                          <div className="relative" style={{minHeight: '100%'}}>
                             <textarea
                               value={editContent}
                               onChange={(e) => setEditContent(e.target.value)}
-                              className="absolute inset-0 w-full h-full px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-transparent z-10 resize-none overflow-auto"
+                              className="absolute inset-0 w-full h-full px-3 py-2 font-mono text-sm focus:outline-none bg-transparent z-10 resize-none overflow-auto"
                               spellCheck={false}
                               style={{ color: 'transparent', caretColor: 'white' }}
                             />
                             <SyntaxHighlighter
                               language="python"
                               style={vscDarkPlus}
-                              customStyle={{ margin: 0, fontSize: '13px', pointerEvents: 'none', minHeight: '400px' }}
+                              customStyle={{ margin: 0, fontSize: '13px', pointerEvents: 'none', minHeight: '100%' }}
                               showLineNumbers
                             >
                               {editContent || '# Enter your strategy code here'}
@@ -887,6 +863,54 @@ class MyStrategy(CtaTemplate):
                           </div>
                         </div>
                       </div>
+
+                      {/* Right: Metadata & Parameters */}
+                      <div className="w-96 flex flex-col overflow-hidden flex-shrink-0 bg-gray-50 border-l border-gray-300">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Strategy Name</label>
+                              <input
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Class Name</label>
+                              <input
+                                type="text"
+                                value={editClassName}
+                                onChange={(e) => setEditClassName(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="e.g., MyStrategy"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                              <textarea
+                                value={editDescription}
+                                onChange={(e) => setEditDescription(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                rows={3}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Default Parameters (JSON)</label>
+                              <textarea
+                                value={editParameters}
+                                onChange={(e) => setEditParameters(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                rows={10}
+                                placeholder='{"fast_window": 5, "slow_window": 20}'
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Strategy parameters as JSON. Used as defaults in backtests.</p>
+                            </div>
+                          </div>
+                        </div>
                     </div>
                   )}
                 </div>

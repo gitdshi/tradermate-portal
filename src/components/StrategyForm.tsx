@@ -158,11 +158,12 @@ export default function StrategyForm({ strategy, onClose }: StrategyFormProps) {
 
   const dialogClass = editorFullScreen
     ? 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-none shadow-none w-full h-full overflow-hidden flex flex-col'
-    : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col'
+    : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col'
 
   return (
     <div className={containerClass}>
       <div className={dialogClass}>
+        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-semibold">
             {isEdit ? `Edit Strategy${strategy?.version ? ` (v${strategy.version})` : ''}` : 'Create New Strategy'}
@@ -185,84 +186,18 @@ export default function StrategyForm({ strategy, onClose }: StrategyFormProps) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
-          {error && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 text-sm">
-              {error}
+        {/* Body with 2-column layout */}
+        <div className="flex-1 overflow-hidden flex">
+          {/* Left/Center: Code Editor */}
+          <div className={`flex-1 flex flex-col border-r border-gray-200 dark:border-gray-700 ${editorFullScreen ? '' : ''}`}>
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <label className="block text-sm font-medium">
+                {isEdit ? 'Strategy Code *' : 'Strategy Code (optional)'}
+              </label>
             </div>
-          )}
-
-          {!editorFullScreen && (
-            <>
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium mb-2">
-                  Strategy Name *
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="My Trading Strategy"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="description" className="block text-sm font-medium mb-2">
-                  Description
-                </label>
-                <textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Strategy description..."
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="className" className="block text-sm font-medium mb-2">
-                  Class Name *
-                </label>
-                <input
-                  id="className"
-                  type="text"
-                  value={className}
-                  onChange={(e) => setClassName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="MyStrategyClass"
-                  required
-                />
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Enter the Python class name defined in the strategy code.</p>
-              </div>
-
-              <div>
-                <label htmlFor="parameters" className="block text-sm font-medium mb-2">
-                  Parameters (JSON)
-                </label>
-                <textarea
-                  id="parameters"
-                  value={parameters}
-                  onChange={(e) => setParameters(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                  rows={6}
-                  placeholder='{"param1": 10, "flag": true}'
-                />
-                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Optional JSON object defining strategy parameters.</p>
-              </div>
-            </>
-          )}
-
-          <div className="flex-1 flex flex-col">
-            <label htmlFor="code" className="block text-sm font-medium mb-2">
-              {isEdit ? 'Strategy Code *' : 'Strategy Code (optional)'}
-            </label>
-            <div className={`border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden flex-1 ${editorFullScreen ? '' : ''}`}>
+            <div className="flex-1 relative">
               <Editor
-                height={editorFullScreen ? 'calc(100vh - 240px)' : '400px'}
+                height="100%"
                 defaultLanguage="python"
                 defaultValue={code}
                 value={code}
@@ -270,11 +205,9 @@ export default function StrategyForm({ strategy, onClose }: StrategyFormProps) {
                 onMount={(_editor, monaco) => {
                   editorRef.current = _editor
                   monacoRef.current = monaco
-                  // register completion provider (calls simple suggestions)
                   try {
                     monaco.languages.registerCompletionItemProvider('python', {
                       provideCompletionItems: (model, position) => {
-                        // simple local provider returning import suggestions based on current words
                         const word = model.getWordUntilPosition(position)
                         const range = {
                           startLineNumber: position.lineNumber,
@@ -283,9 +216,8 @@ export default function StrategyForm({ strategy, onClose }: StrategyFormProps) {
                           endColumn: word.endColumn,
                         }
                         const suggestions = []
-                        // basic suggestions
                         if (word.word.startsWith('imp')) {
-                          suggestions.push({ label: 'import', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'import ' , range})
+                          suggestions.push({ label: 'import', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'import ', range })
                         }
                         return { suggestions }
                       }
@@ -297,48 +229,126 @@ export default function StrategyForm({ strategy, onClose }: StrategyFormProps) {
                 options={{
                   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
                   fontSize: 13,
-                  minimap: { enabled: false },
+                  minimap: { enabled: !editorFullScreen },
                   automaticLayout: true,
                 }}
               />
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-              {isEdit ? 'Enter your VnPy strategy code here' : 'Optional strategy code — you can add code later.'}
-            </p>
+            <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {isEdit ? 'Enter your VnPy strategy code here' : 'Optional strategy code — you can add code later.'}
+              </p>
+            </div>
           </div>
 
-          {isEdit && !editorFullScreen && (
-            <div className="flex items-center gap-2">
-              <input
-                id="isActive"
-                type="checkbox"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
-              />
-              <label htmlFor="isActive" className="text-sm font-medium">
-                Active (enable this strategy for trading)
-              </label>
-            </div>
-          )}
-        </form>
+          {/* Right: Metadata & Parameters */}
+          {!editorFullScreen && (
+            <form onSubmit={handleSubmit} className="w-96 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {error && (
+                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 text-sm">
+                    {error}
+                  </div>
+                )}
 
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={saveMutation.isPending}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            <Save className="h-4 w-4" />
-            {saveMutation.isPending ? 'Saving...' : isEdit ? 'Update' : 'Create'}
-          </button>
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium mb-2">
+                    Strategy Name *
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="My Trading Strategy"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="className" className="block text-sm font-medium mb-2">
+                    Class Name *
+                  </label>
+                  <input
+                    id="className"
+                    type="text"
+                    value={className}
+                    onChange={(e) => setClassName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="MyStrategyClass"
+                    required
+                  />
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Python class name in the code</p>
+                </div>
+
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Strategy description..."
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="parameters" className="block text-sm font-medium mb-2">
+                    Default Parameters (JSON)
+                  </label>
+                  <textarea
+                    id="parameters"
+                    value={parameters}
+                    onChange={(e) => setParameters(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    rows={8}
+                    placeholder='{"fast_window": 5, "slow_window": 20}'
+                  />
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    Strategy parameters as JSON. These will be used as defaults in backtests.
+                  </p>
+                </div>
+
+                {isEdit && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="isActive"
+                      type="checkbox"
+                      checked={isActive}
+                      onChange={(e) => setIsActive(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
+                    />
+                    <label htmlFor="isActive" className="text-sm font-medium">
+                      Active
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer buttons inside right panel */}
+              <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={saveMutation.isPending}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  {saveMutation.isPending ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>

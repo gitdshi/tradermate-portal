@@ -224,6 +224,8 @@ export default function BacktestJobList({ onViewResults, onViewBulkSummary }: Ba
             const jobDetail = jobDetails[job.job_id]
             const hasStats = (job.status === 'finished' || job.status === 'completed')
             const stats = jobDetail?.result?.statistics
+            // parameters may come from job metadata or from the saved result
+            const jobParams = (job as any).parameters || (jobDetail?.result && (jobDetail.result as any).parameters) || {}
 
             return (
               <div
@@ -289,6 +291,13 @@ export default function BacktestJobList({ onViewResults, onViewBulkSummary }: Ba
                         )}
                         {job.slippage !== undefined && (
                           <span>Slip: {job.slippage}</span>
+                        )}
+                        {/* Parameters summary */}
+                        {(jobParams && Object.keys(jobParams).length > 0) && (
+                          <span className="inline-flex items-center gap-1">
+                            <Layers className="h-3 w-3" />
+                            Params: {Object.keys(jobParams).length}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -432,6 +441,8 @@ function BulkJobCard({
   const hasFinished = job.status === 'finished' || job.status === 'completed'
   const bestReturn = job.result?.best_return
   const bestSymbol = job.result?.best_symbol
+  // parameters for bulk job (may be present on job or inside result)
+  const jobParams = job.parameters || (job.result && (job.result as any).parameters) || {}
 
   // Fetch first page when expanded
   useEffect(() => {
@@ -523,6 +534,13 @@ function BulkJobCard({
               )}
               {job.rate !== undefined && <span>Rate: {job.rate}</span>}
               {job.slippage !== undefined && <span>Slip: {job.slippage}</span>}
+              {/* Parameters summary for bulk job */}
+              {(jobParams && Object.keys(jobParams).length > 0) && (
+                <span className="inline-flex items-center gap-1">
+                  <Layers className="h-3 w-3" />
+                  Params: {Object.keys(jobParams).length}
+                </span>
+              )}
             </div>
           </div>
 
@@ -640,6 +658,7 @@ function BulkJobCard({
 
           {/* Rows */}
           {allResults.map((child) => {
+            const childParams = (child as any).parameters || {}
             const ret = child.statistics?.total_return
             return (
               <button
@@ -650,6 +669,9 @@ function BulkJobCard({
                 <span className="truncate font-medium">
                   {child.symbol}
                   {child.symbol_name && <span className="text-muted-foreground ml-1">({child.symbol_name})</span>}
+                  {childParams && Object.keys(childParams).length > 0 && (
+                    <span className="text-[10px] text-muted-foreground ml-2">Params: {Object.keys(childParams).length}</span>
+                  )}
                 </span>
                 <span className={`text-right font-semibold ${ret !== undefined ? (ret >= 0 ? 'text-red-500' : 'text-green-500') : ''}`}>
                   {ret !== undefined ? `${ret.toFixed(2)}%` : '-'}

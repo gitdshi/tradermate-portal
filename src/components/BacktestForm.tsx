@@ -1,8 +1,9 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Play, Search, X } from 'lucide-react'
+import { Play, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { marketDataAPI, queueAPI, strategiesAPI } from '../lib/api'
 import { useAuthStore } from '../stores/auth'
+import SymbolSearch from './SymbolSearch'
 
 interface BacktestFormProps {
   onClose: () => void
@@ -34,6 +35,8 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
   const [slippage, setSlippage] = useState('0.0001')
   const [benchmark, setBenchmark] = useState('399300.SZ')
   const [error, setError] = useState('')
+  const [activeTab, setActiveTab] = useState<'basic' | 'parameters'>('basic')
+  const [parameters, setParameters] = useState<string>('{}')
   
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -70,6 +73,11 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
   const strategies = strategiesData?.data || []
   
   console.log('Final strategies array:', strategies)
+  try {
+    console.log('Final strategies JSON:', JSON.stringify(strategies, null, 2))
+  } catch (e) {
+    console.log('Could not stringify strategies', e)
+  }
 
   // Fetch stocks with paginated search (20 per page) and support loading more
   const PAGE_SIZE = 20
@@ -98,9 +106,41 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
   useEffect(() => {
     if (!strategyId && strategies.length > 0) {
       const firstActive = strategies.find((s: any) => s.is_active) || strategies[0]
-      if (firstActive) setStrategyId(String(firstActive.id))
+      if (firstActive) {
+        setStrategyId(String(firstActive.id))
+        // Load strategy's default parameters
+        console.log('Auto-selected strategy:', firstActive)
+        if (firstActive.parameters) {
+          setParameters(JSON.stringify(firstActive.parameters, null, 2))
+        }
+      }
     }
   }, [strategies, strategyId])
+
+  // Update parameters when strategy changes
+  useEffect(() => {
+    if (strategyId) {
+      const selected = strategies.find((s: any) => String(s.id) === strategyId)
+      if (selected && selected.parameters && Object.keys(selected.parameters).length > 0) {
+        setParameters(JSON.stringify(selected.parameters, null, 2))
+      } else {
+        // If the list endpoint doesn't include parameters, fetch full strategy details
+        ;(async () => {
+          try {
+            const resp = await strategiesAPI.get(parseInt(strategyId))
+            const data = resp?.data
+            console.log('Fetched strategy details for backtest form (status:', resp?.status, '):', data)
+            const paramsObj = data?.parameters || {}
+            console.log('Populating parameters state with:', paramsObj)
+            setParameters(JSON.stringify(paramsObj, null, 2))
+          } catch (e) {
+            console.error('Failed to fetch strategy details for parameters:', e)
+            setParameters('{}')
+          }
+        })()
+      }
+    }
+  }, [strategyId, strategies])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -203,6 +243,15 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
       return
     }
 
+    // Parse parameters
+    let paramsObj: Record<string, unknown> = {}
+    try {
+      paramsObj = parameters && parameters.trim() ? JSON.parse(parameters) : {}
+    } catch (e) {
+      setError('Parameters must be valid JSON')
+      return
+    }
+
     const selectedStrategy = strategies.find((s: any) => String(s.id) === strategyId)
 
     submitMutation.mutate({
@@ -212,7 +261,7 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
       symbol_name: symbolName,
       start_date: startDate,
       end_date: endDate,
-      parameters: {},
+      parameters: paramsObj,
       initial_capital: parseFloat(initialCapital),
       rate: parseFloat(rate),
       slippage: parseFloat(slippage),
@@ -233,12 +282,41 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex border-b border-border">
+          <button
+            type="button"
+            onClick={() => setActiveTab('basic')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'basic'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Basic Settings
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('parameters')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'parameters'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Strategy Parameters
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
           {error && (
             <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
               {error}
             </div>
           )}
+
+          {activeTab === 'basic' && (
+            <>
 
           <div>
             <label htmlFor="strategy" className="block text-sm font-medium mb-2">
@@ -263,72 +341,17 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
             </select>
           </div>
 
-          <div ref={dropdownRef}>
-            <label htmlFor="symbol" className="block text-sm font-medium mb-2">
-              Symbol *
-            </label>
-            <div className="relative">
-              <div className="relative">
-                <input
-                  id="symbol"
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  onFocus={() => setShowDropdown(true)}
-                  className="w-full px-3 py-2 pr-10 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="Search by code or name..."
-                  required
-                />
-                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              </div>
-
-              {showDropdown && (
-                <div className="absolute z-10 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {isLoadingStocks ? (
-                    <div className="p-3 text-sm text-muted-foreground text-center">
-                      Loading...
-                    </div>
-                  ) : stocks.length > 0 ? (
-                    stocks.map((stock) => (
-                      <button
-                        key={stock.vt_symbol}
-                        type="button"
-                        onClick={() => handleStockSelect(stock)}
-                        className="w-full text-left px-3 py-2 hover:bg-muted transition-colors border-b border-border last:border-0"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium text-sm">{stock.symbol}</div>
-                            <div className="text-xs text-muted-foreground">{stock.name}</div>
-                          </div>
-                          <div className="text-xs text-muted-foreground">{stock.exchange}</div>
-                        </div>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="p-3 text-sm text-muted-foreground text-center">
-                      No stocks found
-                    </div>
-                  )}
-                  {/* Load more */}
-                  {(hasNextPage || isFetchingNextPage) && (
-                    <div className="p-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => fetchNextPage()}
-                        className="px-3 py-1 rounded bg-muted/20 hover:bg-muted transition-colors"
-                      >
-                        {isFetchingNextPage ? 'Loading...' : '...'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+          <div>
+            <label htmlFor="symbol" className="block text-sm font-medium mb-2">Symbol *</label>
+            <SymbolSearch
+              onChoose={(stock) => {
+                setSymbol(stock.vt_symbol || '')
+                setSymbolName(stock.name || '')
+                setSearchTerm(`${stock.symbol} - ${stock.name}`)
+              }}
+            />
             {symbol && (
-              <div className="mt-1 text-xs text-muted-foreground">
-                Selected: {symbol}
-              </div>
+              <div className="mt-1 text-xs text-muted-foreground">Selected: {symbol}{symbolName ? ` — ${symbolName}` : ''}</div>
             )}
           </div>
 
@@ -426,6 +449,27 @@ export default function BacktestForm({ onClose, onSubmitSuccess }: BacktestFormP
               ))}
             </select>
           </div>
+          </>
+          )}
+
+          {activeTab === 'parameters' && (
+            <div>
+              <label htmlFor="parameters" className="block text-sm font-medium mb-2">
+                Strategy Parameters (JSON)
+              </label>
+              <textarea
+                id="parameters"
+                value={parameters}
+                onChange={(e) => setParameters(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+                rows={18}
+                placeholder='{"fast_window": 5, "slow_window": 20}'
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Override strategy default parameters. Leave unchanged to use defaults from the strategy.
+              </p>
+            </div>
+          )}
         </form>
 
         <div className="flex items-center justify-end gap-3 p-4 border-t border-border">

@@ -283,6 +283,24 @@ export default function BacktestResults({ jobId, onClose }: BacktestResultsProps
                 <span className="ml-2 font-medium">{result.end_date}</span>
               </div>
             </div>
+            {/* Parameters JSON */}
+            <div className="mt-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">Parameters</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const params = jobData?.parameters || result?.parameters || {}
+                      navigator.clipboard && navigator.clipboard.writeText(JSON.stringify(params, null, 2))
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <pre className="mt-2 p-3 bg-muted/30 rounded text-xs font-mono max-h-48 overflow-auto">{JSON.stringify(jobData?.parameters || result?.parameters || {}, null, 2)}</pre>
+            </div>
           </div>
             </div>
           ) : (

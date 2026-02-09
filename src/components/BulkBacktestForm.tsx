@@ -1,7 +1,8 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, Layers, Play, Search, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Layers, Play, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { marketDataAPI, queueAPI, strategiesAPI } from '../lib/api'
+import SymbolSearch from './SymbolSearch'
 
 interface BulkBacktestFormProps {
   onClose: () => void
@@ -30,15 +31,14 @@ export default function BulkBacktestForm({ onClose, onSubmitSuccess }: BulkBackt
   const [slippage, setSlippage] = useState('0.0001')
   const [benchmark, setBenchmark] = useState('399300.SZ')
   const [error, setError] = useState('')
+  const [activeTab, setActiveTab] = useState<'basic' | 'symbols' | 'parameters'>('basic')
+  const [parameters, setParameters] = useState<string>('{}')
 
   // Symbol selection
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('industry')
   const [selectedIndustry, setSelectedIndustry] = useState('')
   const [selectedExchange, setSelectedExchange] = useState('')
   const [selectedSymbols, setSelectedSymbols] = useState<Map<string, Stock>>(new Map())
-  const [manualSearch, setManualSearch] = useState('')
-  const [showManualDropdown, setShowManualDropdown] = useState(false)
-  const manualRef = useRef<HTMLDivElement>(null)
 
   const benchmarkOptions = [
     { value: '399300.SZ', label: 'HS300 (沪深300)' },
@@ -63,9 +63,36 @@ export default function BulkBacktestForm({ onClose, onSubmitSuccess }: BulkBackt
   useEffect(() => {
     if (!strategyId && strategies.length > 0) {
       const first = strategies.find((s: any) => s.is_active) || strategies[0]
-      if (first) setStrategyId(String(first.id))
+      if (first) {
+        setStrategyId(String(first.id))
+        // Load strategy's default parameters
+        if (first.parameters) {
+          setParameters(JSON.stringify(first.parameters, null, 2))
+        }
+      }
     }
   }, [strategies, strategyId])
+
+  // Update parameters when strategy changes
+  useEffect(() => {
+    if (strategyId) {
+      const selected = strategies.find((s: any) => String(s.id) === strategyId)
+      if (selected && selected.parameters && Object.keys(selected.parameters).length > 0) {
+        setParameters(JSON.stringify(selected.parameters, null, 2))
+      } else {
+        ;(async () => {
+          try {
+            const resp = await strategiesAPI.get(parseInt(strategyId))
+            const data = resp?.data
+            const paramsObj = data?.parameters || {}
+            setParameters(JSON.stringify(paramsObj, null, 2))
+          } catch (e) {
+            setParameters('{}')
+          }
+        })()
+      }
+    }
+  }, [strategyId, strategies])
 
   // Sectors (industries)
   const { data: sectorsData } = useQuery({
@@ -95,37 +122,7 @@ export default function BulkBacktestForm({ onClose, onSubmitSuccess }: BulkBackt
   })
   const filteredStocks: Stock[] = filteredData?.data || []
 
-  // Manual symbol search (paginated)
-  const PAGE_SIZE = 20
-  const {
-    data: manualPages,
-    isLoading: isLoadingManual,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery<Stock[]>({
-    queryKey: ['manual-stocks', manualSearch],
-    queryFn: async ({ pageParam }) => {
-      const offset = pageParam as number
-      const res = await marketDataAPI.symbols(undefined, manualSearch.trim() || undefined, PAGE_SIZE, offset)
-      return res.data as Stock[]
-    },
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => (lastPage.length === PAGE_SIZE ? allPages.length * PAGE_SIZE : undefined),
-    enabled: selectionMode === 'manual',
-  })
-  const manualStocks: Stock[] = manualPages?.pages.flat() || []
-
-  // Close manual dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (manualRef.current && !manualRef.current.contains(e.target as Node)) {
-        setShowManualDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+  
 
   // Select / deselect helpers
   const toggleSymbol = (stock: Stock) => {
@@ -197,18 +194,30 @@ export default function BulkBacktestForm({ onClose, onSubmitSuccess }: BulkBackt
     if (!startDate || !endDate) { setError('Please select start and end dates'); return }
     if (new Date(startDate) >= new Date(endDate)) { setError('End date must be after start date'); return }
 
+    // Parse parameters
+    let paramsObj: Record<string, unknown> = {}
+    try {
+      paramsObj = parameters && parameters.trim() ? JSON.parse(parameters) : {}
+    } catch (e) {
+      setError('Parameters must be valid JSON')
+      return
+    }
+
     const selectedStrategy = strategies.find((s: any) => String(s.id) === strategyId)
 
     // Convert selected symbols to ts_code format (000001.SZ) for the backend
     const symbolList = Array.from(selectedSymbols.values()).map(s => s.ts_code || s.vt_symbol)
+    // Also include symbol names for each selected symbol so backend/UI can show them per-job
+    const symbolNames = Array.from(selectedSymbols.values()).map(s => s.name || '')
 
     submitMutation.mutate({
       strategy_id: parseInt(strategyId),
       strategy_name: selectedStrategy?.name || '',
       symbols: symbolList,
+      symbol_names: symbolNames,
       start_date: startDate,
       end_date: endDate,
-      parameters: {},
+      parameters: paramsObj,
       initial_capital: parseFloat(initialCapital),
       rate: parseFloat(rate),
       slippage: parseFloat(slippage),
@@ -233,10 +242,51 @@ export default function BulkBacktestForm({ onClose, onSubmitSuccess }: BulkBackt
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex border-b border-border">
+          <button
+            type="button"
+            onClick={() => setActiveTab('basic')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'basic'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Basic Settings
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('symbols')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'symbols'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Symbols ({selectedSymbols.size})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('parameters')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'parameters'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Strategy Parameters
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
           {error && (
             <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>
           )}
+
+          {/* Basic Settings Tab */}
+          {activeTab === 'basic' && (
+            <div className="space-y-4">
 
           {/* Strategy */}
           <div>
@@ -256,6 +306,59 @@ export default function BulkBacktestForm({ onClose, onSubmitSuccess }: BulkBackt
               ))}
             </select>
           </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Start Date *</label>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">End Date *</label>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" required />
+            </div>
+          </div>
+
+          {/* Capital */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Initial Capital *</label>
+            <input type="number" value={initialCapital} onChange={(e) => setInitialCapital(e.target.value)}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              min="0" step="1000" required />
+          </div>
+
+          {/* Rate / slippage */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Commission Rate</label>
+              <input type="number" value={rate} onChange={(e) => setRate(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                min="0" step="0.0001" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Slippage</label>
+              <input type="number" value={slippage} onChange={(e) => setSlippage(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                min="0" step="0.0001" />
+            </div>
+          </div>
+
+          {/* Benchmark */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Benchmark *</label>
+            <select value={benchmark} onChange={(e) => setBenchmark(e.target.value)}
+              className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" required>
+              {benchmarkOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+            </div>
+          )}
+
+          {/* Symbols Tab */}
+          {activeTab === 'symbols' && (
+            <div className="space-y-4">
 
           {/* Symbol Selection Mode */}
           <div>
@@ -343,60 +446,13 @@ export default function BulkBacktestForm({ onClose, onSubmitSuccess }: BulkBackt
 
             {/* Manual search */}
             {selectionMode === 'manual' && (
-              <div ref={manualRef} className="space-y-2">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={manualSearch}
-                    onChange={(e) => { setManualSearch(e.target.value); setShowManualDropdown(true) }}
-                    onFocus={() => setShowManualDropdown(true)}
-                    className="w-full px-3 py-2 pr-10 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="Search by code or name..."
-                  />
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-
-                  {showManualDropdown && (
-                    <div className="absolute z-20 w-full mt-1 bg-background border border-border rounded-md shadow-lg max-h-52 overflow-y-auto">
-                      {isLoadingManual ? (
-                        <div className="p-3 text-sm text-muted-foreground text-center">Loading...</div>
-                      ) : manualStocks.length > 0 ? (
-                        manualStocks.map(stock => {
-                          const key = stock.ts_code || stock.vt_symbol
-                          const isSelected = selectedSymbols.has(key)
-                          return (
-                            <button
-                              key={key}
-                              type="button"
-                              onClick={() => toggleSymbol(stock as Stock)}
-                              className={`w-full text-left px-3 py-2 hover:bg-muted transition-colors border-b border-border last:border-0 flex items-center justify-between ${
-                                isSelected ? 'bg-primary/5' : ''
-                              }`}
-                            >
-                              <div>
-                                <span className="font-medium text-sm">{stock.symbol}</span>
-                                <span className="text-xs text-muted-foreground ml-2">{stock.name}</span>
-                              </div>
-                              {isSelected && <Check className="h-4 w-4 text-primary" />}
-                            </button>
-                          )
-                        })
-                      ) : (
-                        <div className="p-3 text-sm text-muted-foreground text-center">No results</div>
-                      )}
-                      {(hasNextPage || isFetchingNextPage) && (
-                        <div className="p-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => fetchNextPage()}
-                            className="px-3 py-1 rounded bg-muted/20 hover:bg-muted text-sm"
-                          >
-                            {isFetchingNextPage ? 'Loading...' : '...'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+              <div className="space-y-2">
+                <SymbolSearch
+                  multi
+                  selected={selectedSymbols}
+                  onToggle={(stock) => toggleSymbol(stock as Stock)}
+                  placeholder="Search by code or name..."
+                />
               </div>
             )}
 
@@ -431,53 +487,27 @@ export default function BulkBacktestForm({ onClose, onSubmitSuccess }: BulkBackt
               </div>
             )}
           </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Start Date *</label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" required />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">End Date *</label>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" required />
-            </div>
-          </div>
+          )}
 
-          {/* Capital */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Initial Capital *</label>
-            <input type="number" value={initialCapital} onChange={(e) => setInitialCapital(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-              min="0" step="1000" required />
-          </div>
-
-          {/* Rate / slippage */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Commission Rate</label>
-              <input type="number" value={rate} onChange={(e) => setRate(e.target.value)}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                min="0" step="0.0001" />
+          {/* Parameters Tab */}
+          {activeTab === 'parameters' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Strategy Parameters (JSON)</label>
+                <textarea
+                  value={parameters}
+                  onChange={(e) => setParameters(e.target.value)}
+                  className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+                  rows={18}
+                  placeholder='{\n  "param1": "value1",\n  "param2": 123\n}'
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Override strategy default parameters. Must be valid JSON format.
+                </p>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Slippage</label>
-              <input type="number" value={slippage} onChange={(e) => setSlippage(e.target.value)}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                min="0" step="0.0001" />
-            </div>
-          </div>
-
-          {/* Benchmark */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Benchmark *</label>
-            <select value={benchmark} onChange={(e) => setBenchmark(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring" required>
-              {benchmarkOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
+          )}
         </form>
 
         {/* Footer */}
@@ -486,11 +516,19 @@ export default function BulkBacktestForm({ onClose, onSubmitSuccess }: BulkBackt
             className="px-4 py-2 border border-input rounded-md hover:bg-muted transition-colors">
             Cancel
           </button>
-          <button onClick={handleSubmit} disabled={submitMutation.isPending}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2">
-            <Play className="h-4 w-4" />
-            {submitMutation.isPending ? 'Submitting...' : `Bulk Test (${selectedSymbols.size})`}
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">params: {(() => {
+              try {
+                const p = parameters && parameters.trim() ? JSON.parse(parameters) : {}
+                return Object.keys(p).length
+              } catch (e) { return 0 }
+            })()}</span>
+            <button onClick={handleSubmit} disabled={submitMutation.isPending}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2">
+              <Play className="h-4 w-4" />
+              {submitMutation.isPending ? 'Submitting...' : `Bulk Test (${selectedSymbols.size})`}
+            </button>
+          </div>
         </div>
       </div>
     </div>
