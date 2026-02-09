@@ -229,6 +229,10 @@ export const strategyFilesAPI = {
     api.post(`/api/strategy-files/${name}/history/recover`, { version_name: versionName, source }),
 }
 
+// Linting endpoint for strategy code
+// Note: server implements POST /api/strategy-files/lint
+strategyFilesAPI.lint = (payload: { content: string }) => api.post('/api/strategy-files/lint', payload)
+
 // DB-backed strategy file endpoints
 export const strategyFilesDbAPI = {
   list: (source: 'data' | 'project' | 'both' = 'data') => api.get('/api/strategy-files/db', { params: { source } }),
