@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Activity, AlertCircle, Clock, TrendingUp } from 'lucide-react'
-import { queueAPI } from '../lib/api'
+import { queueAPI, systemAPI } from '../lib/api'
 
 export default function Dashboard() {
   const { data: queueStats } = useQuery({
@@ -9,7 +9,17 @@ export default function Dashboard() {
     refetchInterval: 5000,
   })
 
+  const { data: syncStatusData } = useQuery({
+    queryKey: ['syncStatus'],
+    queryFn: () => systemAPI.syncStatus(),
+    refetchInterval: 60000,
+  })
+
   const stats = queueStats?.data
+  const syncStatus = syncStatusData?.data
+  const daemonStatus = syncStatus?.daemon
+  const consistency = syncStatus?.consistency
+  const latestSync = syncStatus?.sync?.latest || {}
 
   return (
     <div className="p-6 space-y-6">
@@ -51,7 +61,7 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-card p-6 rounded-lg border border-border">
           <h2 className="text-xl font-semibold mb-4">Queue Status</h2>
           {stats ? (
@@ -83,6 +93,40 @@ export default function Dashboard() {
               label="Workers"
               status={stats && stats.active > 0 ? 'online' : 'idle'}
             />
+          </div>
+        </div>
+
+        <div className="bg-card p-6 rounded-lg border border-border">
+          <h2 className="text-xl font-semibold mb-4">Data Sync Status</h2>
+          <div className="space-y-3">
+            <StatusItem
+              label="Daemon"
+              status={daemonStatus?.status || 'checking'}
+            />
+            <StatusItem
+              label="Consistency"
+              status={consistency ? (consistency.is_consistent ? 'online' : 'warning') : 'checking'}
+            />
+            <div className="text-sm text-muted-foreground">
+              Missing dates: <span className="font-medium text-foreground">{consistency?.missing_count ?? '—'}</span>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Last run: <span className="font-medium text-foreground">{daemonStatus?.last_run_at ? new Date(daemonStatus.last_run_at).toLocaleString() : '—'}</span>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="text-sm font-medium mb-2">Latest Sync</div>
+            <div className="space-y-2">
+              {Object.entries(latestSync).map(([endpoint, info]) => (
+                <div key={endpoint} className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{endpoint.replace(/_/g, ' ')}</span>
+                  <span className="font-medium">{(info as { status?: string }).status || 'unknown'}</span>
+                </div>
+              ))}
+              {Object.keys(latestSync).length === 0 && (
+                <div className="text-sm text-muted-foreground">No sync history available</div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -118,6 +162,8 @@ function StatusItem({ label, status }: { label: string; status: string }) {
     offline: 'bg-red-500',
     idle: 'bg-yellow-500',
     checking: 'bg-gray-500',
+    warning: 'bg-yellow-500',
+    stale: 'bg-red-500',
   }
 
   return (

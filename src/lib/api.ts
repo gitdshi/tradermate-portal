@@ -189,6 +189,11 @@ export const analyticsAPI = {
   compare: (ids: string) => api.get('/api/analytics/compare', { params: { ids } }),
 }
 
+// System API
+export const systemAPI = {
+  syncStatus: () => api.get('/api/system/sync-status'),
+}
+
 // Portfolio API
 export const portfolioAPI = {
   positions: () => api.get('/api/portfolio/positions'),
@@ -241,12 +246,11 @@ export const strategyFilesAPI = {
 
   recoverHistory: (name: string, versionName: string, source: 'data' | 'project' = 'data') =>
     api.post(`/api/strategy-files/${name}/history/recover`, { version_name: versionName, source }),
-}
 
-// Linting endpoint for strategy code
-// Note: server implements POST /api/strategy-files/lint
-strategyFilesAPI.lint = (payload: { content: string }) => api.post('/api/strategy-files/lint', payload)
-strategyFilesAPI.lintPyright = (payload: { content: string }) => api.post('/api/strategy-files/lint/pyright', payload)
+  // lint endpoints
+  lint: (payload: { content: string }) => api.post('/api/strategy-files/lint', payload),
+  lintPyright: (payload: { content: string }) => api.post('/api/strategy-files/lint/pyright', payload),
+}
 
 // DB-backed strategy file endpoints
 export const strategyFilesDbAPI = {
