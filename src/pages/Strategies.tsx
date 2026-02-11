@@ -146,6 +146,32 @@ class MyStrategy(CtaTemplate):
   const [historyModalContent, setHistoryModalContent] = useState<{name: string, versionName: string, content: string, strategyName?: string | null, className?: string | null, historyVersion?: string | null, parameters?: any} | null>(null)
   const [showDiff, setShowDiff] = useState(true)
 
+  const formatParameters = (val: any): string => {
+    if (val == null) return '{}'
+    if (typeof val === 'object') return JSON.stringify(val, null, 2)
+    let s = String(val).trim()
+    try {
+      const parsed = JSON.parse(s)
+      if (typeof parsed === 'string') {
+        try {
+          const parsed2 = JSON.parse(parsed)
+          return JSON.stringify(parsed2, null, 2)
+        } catch {
+          return parsed
+        }
+      }
+      return JSON.stringify(parsed, null, 2)
+    } catch {
+      const unescaped = s.replace(/\\"/g, '"').replace(/\\n/g, '\n')
+      try {
+        const p2 = JSON.parse(unescaped)
+        return JSON.stringify(p2, null, 2)
+      } catch {
+        return s
+      }
+    }
+  }
+
   useEffect(() => {
     if (activeTab === 'files') {
       loadDbStrategies()
@@ -353,7 +379,7 @@ class MyStrategy(CtaTemplate):
   const viewHistoryVersion = async (name: string, versionName: string, source: 'data' | 'project' = 'data') => {
     try {
       const { data } = await strategyFilesAPI.getHistoryContent(name, versionName, source)
-      setHistoryModalContent({ name, versionName, content: data.content, strategyName: data.strategy_name ?? null, className: data.class_name ?? null, historyVersion: data.version ?? null, parameters: data.parameters ?? null })
+      setHistoryModalContent({ name, versionName, content: data.content, strategyName: data.strategy_name ?? null, className: data.class_name ?? null, historyVersion: data.version ?? null, parameters: formatParameters(data.parameters ?? null) })
       setShowHistoryModal(true)
     } catch (err) {
       setError('Failed to load history version')
@@ -376,7 +402,7 @@ class MyStrategy(CtaTemplate):
           // ignore and fallback to history id
         }
       }
-      setHistoryModalContent({ name, versionName: versionLabel, content: data.code, strategyName: data.strategy_name ?? null, className: data.class_name ?? null, historyVersion: data.version ?? null, parameters: data.parameters ?? null })
+      setHistoryModalContent({ name, versionName: versionLabel, content: data.code, strategyName: data.strategy_name ?? null, className: data.class_name ?? null, historyVersion: data.version ?? null, parameters: formatParameters(data.parameters ?? null) })
       setShowHistoryModal(true)
     } catch (err) {
       setError('Failed to load history version')
@@ -790,7 +816,7 @@ class MyStrategy(CtaTemplate):
                               setEditName(selectedDbStrategy.name)
                               setEditClassName(selectedDbStrategy.class_name)
                               setEditDescription(selectedDbStrategy.description || '')
-                              setEditParameters(selectedDbStrategy.parameters ? JSON.stringify(selectedDbStrategy.parameters, null, 2) : '{}')
+                              setEditParameters(formatParameters(selectedDbStrategy.parameters))
                               setEditorFullScreen(true)
                             }}
                             className="px-3 py-2 bg-blue-600 text-white rounded flex items-center gap-2 hover:bg-blue-700"
@@ -817,16 +843,16 @@ class MyStrategy(CtaTemplate):
                                   updatePayload.description = editDescription.trim()
                                 }
                                 
-                                // Send parameters if changed
+                                // Send parameters if changed — compare raw editor text to stored representation
                                 try {
-                                  const newParams = editParameters.trim() ? JSON.parse(editParameters) : {}
-                                  const oldParams = selectedDbStrategy.parameters || {}
-                                  if (JSON.stringify(newParams) !== JSON.stringify(oldParams)) {
-                                    updatePayload.parameters = newParams
+                                  const existingString = typeof selectedDbStrategy.parameters === 'string' ? selectedDbStrategy.parameters : JSON.stringify(selectedDbStrategy.parameters || {}, null, 2)
+                                  const newString = editParameters || ''
+                                  if (existingString !== newString) {
+                                    updatePayload.parameters = newString
                                   }
-                                } catch {
-                                  setError('Parameters must be valid JSON')
-                                  return
+                                } catch (e) {
+                                  // Fallback: send raw editor contents if comparison fails
+                                  updatePayload.parameters = editParameters
                                 }
 
                                 // Always send code if it has content OR if it explicitly changed
@@ -925,11 +951,11 @@ class MyStrategy(CtaTemplate):
                         )}
                       </div>
 
-                      {selectedDbStrategy.parameters && Object.keys(selectedDbStrategy.parameters).length > 0 && (
+                      {(selectedDbStrategy.parameters && ((typeof selectedDbStrategy.parameters === 'string' && (selectedDbStrategy.parameters as string).trim() !== '') || (typeof selectedDbStrategy.parameters === 'object' && Object.keys(selectedDbStrategy.parameters).length > 0))) && (
                         <div>
                           <label className="text-sm font-medium text-gray-600">Parameters</label>
                           <pre className="mt-2 p-3 bg-gray-50 rounded border border-gray-200 overflow-x-auto text-xs">
-                            <code>{JSON.stringify(selectedDbStrategy.parameters, null, 2)}</code>
+                            <code>{typeof selectedDbStrategy.parameters === 'string' ? selectedDbStrategy.parameters : JSON.stringify(selectedDbStrategy.parameters, null, 2)}</code>
                           </pre>
                         </div>
                       )}
@@ -960,7 +986,7 @@ class MyStrategy(CtaTemplate):
                                 setEditName(selectedDbStrategy.name)
                                 setEditClassName(selectedDbStrategy.class_name)
                                 setEditDescription(selectedDbStrategy.description || '')
-                                setEditParameters(selectedDbStrategy.parameters ? JSON.stringify(selectedDbStrategy.parameters, null, 2) : '{}')
+                                setEditParameters(formatParameters(selectedDbStrategy.parameters))
                                 setEditorFullScreen(true)
                               }}
                               className="mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
@@ -1124,7 +1150,7 @@ class MyStrategy(CtaTemplate):
                 {historyModalContent.parameters && (
                   <div className="mt-2">
                     <div className="text-xs font-medium text-gray-700">Parameters</div>
-                    <pre className="text-xs font-mono whitespace-pre-wrap bg-gray-50 p-2 rounded mt-1">{JSON.stringify(historyModalContent.parameters, null, 2)}</pre>
+                    <pre className="text-xs font-mono whitespace-pre-wrap bg-gray-50 p-2 rounded mt-1">{typeof historyModalContent.parameters === 'string' ? historyModalContent.parameters : JSON.stringify(historyModalContent.parameters, null, 2)}</pre>
                   </div>
                 )}
               </div>

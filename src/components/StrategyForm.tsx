@@ -20,9 +20,37 @@ export default function StrategyForm({ strategy, onClose }: StrategyFormProps) {
   const [className, setClassName] = useState(strategy?.class_name || '')
   const [code, setCode] = useState(strategy?.code || '')
   const [isActive, setIsActive] = useState(strategy?.is_active ?? true)
-  const [parameters, setParameters] = useState<string>(() =>
-    strategy?.parameters ? JSON.stringify(strategy.parameters, null, 2) : '{}'
-  )
+  const formatParameters = (val: any): string => {
+    if (val == null) return '{}'
+    if (typeof val === 'object') return JSON.stringify(val, null, 2)
+    // val is a string - attempt to unescape / parse common encodings
+    let s = String(val).trim()
+    try {
+      const parsed = JSON.parse(s)
+      if (typeof parsed === 'string') {
+        // double-encoded JSON string
+        try {
+          const parsed2 = JSON.parse(parsed)
+          return JSON.stringify(parsed2, null, 2)
+        } catch {
+          return parsed
+        }
+      }
+      return JSON.stringify(parsed, null, 2)
+    } catch {
+      // fallback: try to unescape escaped quotes and newlines then parse
+      const unescaped = s.replace(/\\"/g, '"').replace(/\\n/g, '\n')
+      try {
+        const p2 = JSON.parse(unescaped)
+        return JSON.stringify(p2, null, 2)
+      } catch {
+        // give up and return original string (trimmed)
+        return s
+      }
+    }
+  }
+
+  const [parameters, setParameters] = useState<string>(() => formatParameters(strategy?.parameters))
   const [error, setError] = useState('')
   const [classOptions, setClassOptions] = useState<string[] | null>(null)
   const [pendingFileContent, setPendingFileContent] = useState<string | null>(null)
@@ -95,22 +123,51 @@ export default function StrategyForm({ strategy, onClose }: StrategyFormProps) {
       }, 100)
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { detail?: string } } }
+      const e = err as any
       console.error('[StrategyForm] save error', err)
-      // Handle different error response formats
-      let errorMessage = 'Failed to save strategy'
-      if (error.response?.data?.detail) {
-        if (Array.isArray(error.response.data.detail)) {
-          errorMessage = error.response.data.detail.map((e: any) => 
-            typeof e === 'string' ? e : e.msg || JSON.stringify(e)
-          ).join(', ')
-        } else if (typeof error.response.data.detail === 'object') {
-          errorMessage = JSON.stringify(error.response.data.detail)
+      let parts: string[] = []
+
+      const resp = e?.response
+      if (resp?.status) parts.push(`HTTP ${resp.status}`)
+
+      const data = resp?.data
+      if (data) {
+        // Common FastAPI / DRF style: { detail: ... }
+        const d = data.detail ?? data.error ?? data.message ?? data
+        if (Array.isArray(d)) {
+          const mapped = d.map((item: any) => {
+            if (typeof item === 'string') return item
+            if (item?.msg) return item.msg
+            if (item?.message) return item.message
+            try { return JSON.stringify(item) } catch { return String(item) }
+          })
+          parts.push(mapped.join(', '))
+        } else if (typeof d === 'object') {
+          // structured field errors
+          try {
+            // try to pretty-format object errors
+            const msgs: string[] = []
+            for (const k of Object.keys(d)) {
+              const v = d[k]
+              if (Array.isArray(v)) msgs.push(`${k}: ${v.join(', ')}`)
+              else if (typeof v === 'object') msgs.push(`${k}: ${JSON.stringify(v)}`)
+              else msgs.push(`${k}: ${String(v)}`)
+            }
+            parts.push(msgs.join('; '))
+          } catch {
+            parts.push(JSON.stringify(d))
+          }
         } else {
-          errorMessage = error.response.data.detail
+          parts.push(String(d))
         }
       }
-      setError(errorMessage)
+
+      if (parts.length === 0) {
+        // fallback to generic message or JS error
+        parts.push(e?.message || 'Failed to save strategy')
+      }
+
+      setError(parts.join(' — '))
     },
   })
 
@@ -129,19 +186,13 @@ export default function StrategyForm({ strategy, onClose }: StrategyFormProps) {
       return
     }
 
-    // Parse parameters JSON
-    let paramsObj: Record<string, unknown> = {}
-    try {
-      paramsObj = parameters && parameters.trim() ? JSON.parse(parameters) : {}
-    } catch (e) {
-      setError('Parameters must be valid JSON')
-      return
-    }
+    // Send parameters textarea content verbatim as a string (store raw editor content)
+    const paramsPayload = parameters && parameters.trim() ? parameters : undefined
 
     const payload: Partial<Strategy> = {
       name: name.trim(),
       description: description.trim() || undefined,
-      parameters: paramsObj,
+      parameters: paramsPayload as any,
     }
 
     // Only include class_name if not empty (required for create, optional for update)
