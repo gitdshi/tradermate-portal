@@ -162,8 +162,24 @@ export const queueAPI = {
 
 // Market Data API
 export const marketDataAPI = {
-  symbols: (exchange?: string, keyword?: string, limit?: number, offset?: number) =>
-    api.get('/api/data/symbols', { params: { exchange, keyword, limit, offset } }),
+  symbols: (exchange?: string, keyword?: string, limit?: number, offset?: number) => {
+    // Map UI market values to backend exchange codes where appropriate.
+    // UI uses values like 'CN', 'US', 'HK' — backend expects TS exchange codes like 'SZ','SH', or accepts undefined for no filter.
+    let exchParam: string | undefined = undefined
+    if (exchange && exchange.trim() !== '') {
+      const up = exchange.toUpperCase()
+      if (up === 'CN') {
+        // CN means both Shanghai/Shenzhen — send undefined to search across both
+        exchParam = undefined
+      } else if (up === 'US' || up === 'HK' || up === 'SZ' || up === 'SH' || up === 'SZSE' || up === 'SSE' || up === 'BJ' || up === 'BSE') {
+        exchParam = up
+      } else {
+        // Pass through other codes (backwards compatibility)
+        exchParam = exchange
+      }
+    }
+    return api.get('/api/data/symbols', { params: { exchange: exchParam, keyword, limit, offset } })
+  },
   
   history: (symbol: string, startDate: string, endDate: string) =>
     api.get('/api/data/history', { params: { symbol, start_date: startDate, end_date: endDate } }),

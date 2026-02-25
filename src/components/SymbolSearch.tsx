@@ -23,21 +23,19 @@ interface SymbolSearchProps {
 
 export default function SymbolSearch({ onSelect, onChoose, onToggle, multi = false, selected, placeholder = 'Search symbols (e.g., AAPL, MSFT)...' }: SymbolSearchProps) {
 	const [searchTerm, setSearchTerm] = useState('')
+	const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
 	const [showDropdown, setShowDropdown] = useState(false)
 	const wrapperRef = useRef<HTMLDivElement | null>(null)
 	const inputRef = useRef<HTMLInputElement | null>(null)
 	const [selectedMarket, setSelectedMarket] = useState<string>('')
 
 	const { data: symbolsData, isLoading } = useQuery({
-		queryKey: ['symbols', selectedMarket],
-		queryFn: () => marketDataAPI.symbols(selectedMarket || undefined),
+		queryKey: ['symbols', selectedMarket, debouncedSearchTerm],
+		queryFn: () => marketDataAPI.symbols(selectedMarket || undefined, debouncedSearchTerm || undefined, 50, 0),
+		keepPreviousData: true,
 	})
 
 	const symbols = symbolsData?.data || []
-	const filteredSymbols = symbols.filter((s: any) =>
-		s.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-		(s.name && s.name.toLowerCase().includes(searchTerm.toLowerCase()))
-	).slice(0, 20)
 
 	const handleClick = (s: Stock) => {
 		if (multi && onToggle) {
@@ -72,6 +70,14 @@ export default function SymbolSearch({ onSelect, onChoose, onToggle, multi = fal
 		return () => document.removeEventListener('mousedown', handleClickOutside)
 	}, [])
 
+	// Debounce search term to avoid firing requests on every keystroke
+	useEffect(() => {
+		const handler = setTimeout(() => {
+			setDebouncedSearchTerm(searchTerm.trim())
+		}, 250)
+		return () => clearTimeout(handler)
+	}, [searchTerm])
+
 	return (
 		<div ref={wrapperRef} className="space-y-4">
 			<div className="flex items-center gap-3">
@@ -103,13 +109,13 @@ export default function SymbolSearch({ onSelect, onChoose, onToggle, multi = fal
 					{isLoading && (
 						<div className="text-center py-8 text-muted-foreground">Loading symbols...</div>
 					)}
-					{!isLoading && searchTerm && (
+						{!isLoading && debouncedSearchTerm && (
 						<div className="bg-card border border-border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
-							{filteredSymbols.length === 0 ? (
-								<div className="p-8 text-center text-muted-foreground">No symbols found matching "{searchTerm}"</div>
+							{symbols.length === 0 ? (
+								<div className="p-8 text-center text-muted-foreground">No symbols found matching "{debouncedSearchTerm}"</div>
 							) : (
 								<div className="divide-y divide-border">
-									{filteredSymbols.map((sym: any) => (
+									{symbols.slice(0, 20).map((sym: any) => (
 										<button key={sym.symbol} type="button" onClick={() => handleClick(sym)} className="w-full p-4 hover:bg-muted transition-colors text-left">
 											<div className="flex items-center justify-between">
 												<div className="flex items-center gap-3">
