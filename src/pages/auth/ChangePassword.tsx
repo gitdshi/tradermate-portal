@@ -12,7 +12,7 @@ export default function ChangePassword() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const navigate = useNavigate()
-  const { isAuthenticated } = useAuthStore()
+  const { isAuthenticated, setAuth, logout } = useAuthStore()
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -22,10 +22,32 @@ export default function ChangePassword() {
 
   const mutation = useMutation({
     mutationFn: () => authAPI.changePassword(currentPassword, newPassword),
-    onSuccess: () => {
+    onSuccess: async () => {
       setError('')
       setSuccess('Password updated successfully.')
       sessionStorage.removeItem('force_change_password')
+
+      const refreshToken = localStorage.getItem('refresh_token')
+      if (!refreshToken) {
+        logout()
+        navigate('/login', { replace: true })
+        return
+      }
+
+      try {
+        const refreshResp = await authAPI.refresh(refreshToken)
+        const newAccess = refreshResp.data.access_token
+        const newRefresh = refreshResp.data.refresh_token
+        localStorage.setItem('access_token', newAccess)
+        localStorage.setItem('refresh_token', newRefresh)
+        const meResp = await authAPI.me()
+        setAuth(meResp.data, newAccess, newRefresh)
+      } catch (err) {
+        logout()
+        navigate('/login', { replace: true })
+        return
+      }
+
       const redirect = sessionStorage.getItem('post_change_redirect')
       sessionStorage.removeItem('post_change_redirect')
       const target = redirect && !redirect.startsWith('/change-password') ? redirect : '/dashboard'
